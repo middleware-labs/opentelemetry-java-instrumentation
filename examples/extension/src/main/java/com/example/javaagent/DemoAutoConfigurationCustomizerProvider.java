@@ -8,6 +8,8 @@ package com.example.javaagent;
 import com.google.auto.service.AutoService;
 import io.opentelemetry.sdk.autoconfigure.spi.AutoConfigurationCustomizer;
 import io.opentelemetry.sdk.autoconfigure.spi.AutoConfigurationCustomizerProvider;
+import io.opentelemetry.sdk.autoconfigure.spi.ConfigProperties;
+import io.opentelemetry.sdk.logs.SdkLoggerProviderBuilder;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -28,13 +30,21 @@ public class DemoAutoConfigurationCustomizerProvider
   @Override
   public void customize(AutoConfigurationCustomizer autoConfiguration) {
     autoConfiguration
+        .addLoggerProviderCustomizer(this::configureSdkLoggerProvider)
         .addPropertiesSupplier(this::getDefaultProperties);
+  }
+
+  private SdkLoggerProviderBuilder configureSdkLoggerProvider(
+      SdkLoggerProviderBuilder loggerProvider, ConfigProperties config) {
+
+    return loggerProvider.addLogRecordProcessor(new DemoLogRecordProcessor());
   }
 
   private Map<String, String> getDefaultProperties() {
     Map<String, String> properties = new HashMap<>();
     properties.put("otel.exporter.otlp.endpoint", "http://localhost:9319");
     properties.put("otel.metrics.exporter", "none");
+    properties.put("otel.logs.exporter", "otlp");
     return properties;
   }
 }
