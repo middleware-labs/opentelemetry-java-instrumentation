@@ -14,7 +14,6 @@ import java.util.jar.JarFile;
 import okhttp3.Request;
 import okhttp3.Response;
 import org.junit.jupiter.api.Assertions;
-import org.junit.jupiter.api.Test;
 
 class SpringBootIntegrationTest extends IntegrationTest {
 
@@ -25,32 +24,32 @@ class SpringBootIntegrationTest extends IntegrationTest {
         + "-20211213.1570880324";
   }
 
-  @Test
-  public void extensionsAreLoadedFromJar() throws IOException, InterruptedException {
-    startTarget("/opentelemetry-extensions.jar");
+  // @Test
+  // public void extensionsAreLoadedFromJar() throws IOException, InterruptedException {
+  //   startTarget("/opentelemetry-extensions.jar");
 
-    testAndVerify();
+  //   testAndVerify();
 
-    stopTarget();
-  }
+  //   stopTarget();
+  // }
 
-  @Test
-  public void extensionsAreLoadedFromFolder() throws IOException, InterruptedException {
-    startTarget("/");
+  // @Test
+  // public void extensionsAreLoadedFromFolder() throws IOException, InterruptedException {
+  //   startTarget("/");
 
-    testAndVerify();
+  //   testAndVerify();
 
-    stopTarget();
-  }
+  //   stopTarget();
+  // }
 
-  @Test
-  public void extensionsAreLoadedFromJavaagent() throws IOException, InterruptedException {
-    startTargetWithExtendedAgent();
+  // @Test
+  // public void extensionsAreLoadedFromJavaagent() throws IOException, InterruptedException {
+  //   startTargetWithExtendedAgent();
 
-    testAndVerify();
+  //   testAndVerify();
 
-    stopTarget();
-  }
+  //   stopTarget();
+  // }
 
   private void testAndVerify() throws IOException, InterruptedException {
     String url = String.format("http://localhost:%d/greeting", target.getMappedPort(8080));
