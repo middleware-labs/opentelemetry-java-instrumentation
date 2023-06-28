@@ -40,6 +40,6 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./examples/extension/build/libs/middleware-javaagent.jar
+          asset_path: ./examples/extension/build/libs/middleware-javaagent.jar # Path of JAR file
           asset_name: middleware-javaagent.jar
           asset_content_type: application/java-archive
