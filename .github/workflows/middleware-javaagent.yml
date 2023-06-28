@@ -27,7 +27,12 @@ jobs:
 
       - name: Set Modified Tag
         id: set_modified_tag
-        run: echo "::set-output name=modified_tag::${{ github.ref.replace('refs/tags/v', '') }}"
+        run: |
+          TAG_NAME=${{ github.ref }}
+          if [[ $TAG_NAME == 'refs/tags/v'* ]]; then
+            MODIFIED_TAG=${TAG_NAME#"refs/tags/v"}
+            echo "::set-output name=modified_tag::${MODIFIED_TAG}"
+          fi
 
       - name: Create Release
         id: create_release
