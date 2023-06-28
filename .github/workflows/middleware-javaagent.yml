@@ -29,8 +29,8 @@ jobs:
         id: set_modified_tag
         run: |
           TAG_NAME=${{ github.ref }}
-          if [[ $TAG_NAME == 'refs.tags.v'* ]]; then
-            MODIFIED_TAG=${TAG_NAME#"refs.tags.v"}
+          if [[ $TAG_NAME == 'refs/tags/v'* ]]; then
+            MODIFIED_TAG=${TAG_NAME#"refs/tags/v"}
             echo "::set-output name=modified_tag::${MODIFIED_TAG}"
           fi
 
