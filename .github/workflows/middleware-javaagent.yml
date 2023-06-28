@@ -31,7 +31,7 @@ jobs:
           TAG_NAME=${{ github.ref }}
           if [[ $TAG_NAME == 'refs/tags/v'* ]]; then
             MODIFIED_TAG=${TAG_NAME#"refs/tags/v"}
-            echo "::set-output name=modified_tag::${MODIFIED_TAG}"
+            echo "modified_tag=$MODIFIED_TAG" >> $GITHUB_OUTPUT
           fi
 
       - name: Create Release
@@ -52,7 +52,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          upload_url: ${{ needs.create_release.outputs.upload_url }}
           asset_path: ./examples/extension/build/libs/middleware-javaagent.jar # Path of JAR file
           asset_name: middleware-javaagent-${{ needs.create_release.outputs.modified_tag }}.jar
           asset_content_type: application/java-archive
