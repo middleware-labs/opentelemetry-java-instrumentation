@@ -143,7 +143,16 @@ public class Instrumenter<REQUEST, RESPONSE> {
    */
   public void end(
       Context context, REQUEST request, @Nullable RESPONSE response, @Nullable Throwable error) {
-    doEnd(context, request, response, error, null);
+    doEnd(context, request, response, error, null, null);
+  }
+
+  public void end(
+      Context context,
+      REQUEST request,
+      @Nullable RESPONSE response,
+      @Nullable Throwable error,
+      String body) {
+    doEnd(context, request, response, error, null, body);
   }
 
   /** Internal method for creating spans with given start/end timestamps. */
@@ -155,7 +164,7 @@ public class Instrumenter<REQUEST, RESPONSE> {
       Instant startTime,
       Instant endTime) {
     Context context = doStart(parentContext, request, startTime);
-    doEnd(context, request, response, error, endTime);
+    doEnd(context, request, response, error, endTime, null);
     return context;
   }
 
@@ -213,7 +222,8 @@ public class Instrumenter<REQUEST, RESPONSE> {
       REQUEST request,
       @Nullable RESPONSE response,
       @Nullable Throwable error,
-      @Nullable Instant endTime) {
+      @Nullable Instant endTime,
+      @Nullable String body) {
     Span span = Span.fromContext(context);
 
     if (error != null) {
@@ -226,6 +236,7 @@ public class Instrumenter<REQUEST, RESPONSE> {
       extractor.onEnd(attributes, context, request, response, error);
     }
     span.setAllAttributes(attributes);
+    span.setAttribute("dp.body", body);
 
     if (!operationListeners.isEmpty()) {
       long endNanos = getNanos(endTime);
