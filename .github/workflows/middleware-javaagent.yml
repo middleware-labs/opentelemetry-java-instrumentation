@@ -2,7 +2,7 @@ name: Create Release
 on:
   push:
     tags:
-      - 'v[0-9]+.[0-9]+.[0-9]+'
+      - 'v[0-9]+.[0-9]+.[0-9]+' # Match tags in the format v1.1.3
 
 jobs:
   create_release:
@@ -42,5 +42,5 @@ jobs:
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
           asset_path: ./examples/extension/build/libs/middleware-javaagent.jar # Path of JAR file
-          asset_name: middleware-javaagent-${{ github.ref }}.jar
+          asset_name: middleware-javaagent-${{ github.ref.replace('refs.tags.v', '') }}.jar
           asset_content_type: application/java-archive
