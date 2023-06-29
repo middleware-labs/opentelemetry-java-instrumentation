@@ -34,7 +34,7 @@ jobs:
 
       - name: Create Release
         id: create_release
-        uses: actions/create-release@v1
+        uses: actions/create-release@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
@@ -46,12 +46,11 @@ jobs:
           prerelease: false
 
       - name: Upload JAR as Release Asset
-        uses: actions/upload-release-asset@v1
+        uses: actions/upload-release-asset@v2
         env:
-#          RELEASE_VERSION: ${{ steps.get-tag.outputs.modified_tag }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./examples/extension/build/libs/middleware-javaagent.jar # Path of JAR file
+          asset_path: ./examples/extension/build/libs/middleware-javaagent.jar
           asset_name: middleware-javaagent-${{ steps.get-tag.outputs.modified_tag }}.jar
           asset_content_type: application/java-archive
