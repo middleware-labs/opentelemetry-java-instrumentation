@@ -23,7 +23,7 @@ jobs:
           cd examples/extension
           ./gradlew build
 
-      - name: Get file name
+      - name: Modify Tag name
         id: get-tag
         run: |
           TAG_NAME=${{ github.ref }}
@@ -48,10 +48,10 @@ jobs:
       - name: Upload JAR as Release Asset
         uses: actions/upload-release-asset@v1
         env:
-          RELEASE_VERSION: ${{ steps.get-tag.outputs.modified_tag }}
+#          RELEASE_VERSION: ${{ steps.get-tag.outputs.modified_tag }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
           asset_path: ./examples/extension/build/libs/middleware-javaagent.jar # Path of JAR file
-          asset_name: middleware-javaagent-${{ env.RELEASE_VERSION }}.jar
+          asset_name: middleware-javaagent-${{ steps.get-tag.outputs.modified_tag }}.jar
           asset_content_type: application/java-archive
