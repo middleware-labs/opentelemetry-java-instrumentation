@@ -10,6 +10,8 @@ jobs:
     outputs:
       upload_url: ${{ steps.create_release.outputs.upload_url }}
       modified_tag: ${{ steps.set_modified_tag.outputs.modified_tag }}
+      file_name: ${{ steps.get-file-name.outputs.file-name }}
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v2
@@ -34,14 +36,14 @@ jobs:
           fi
           echo "file-name=middleware-javaagent-$MODIFIED_TAG.jar" >> "$GITHUB_OUTPUT"
 
-      - name: Get name
+      - name: Get file name
         id: get-file-name
         run: |
           TAG_NAME=${{ github.ref }}
-          if [[ $TAG_NAME == 'refs/tags/v'* ]]; then
-            MODIFIED_TAG=${TAG_NAME#"refs/tags/v"}
+          if [[ $TAG_NAME == refs/*/v* ]]; then
+            MODIFIED_TAG=${TAG_NAME#refs/*/v}
           fi
-          echo "modified_tag=$MODIFIED_TAG" >> "$GITHUB_OUTPUT"
+          echo "modified_tag=$MODIFIED_TAG" >> $GITHUB_OUTPUT
 
       - name: Create Release
         id: create_release
@@ -59,10 +61,11 @@ jobs:
       - name: Upload JAR as Release Asset
         uses: actions/upload-release-asset@v1
         env:
+          RELEASE_VERSION: ${{ steps.get-file-name.outputs.modified_tag }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
           asset_path: ./examples/extension/build/libs/middleware-javaagent.jar # Path of JAR file
 #          asset_name: middleware-javaagent-${{ needs.create_release.outputs.modified_tag }}.jar
-          asset_name: ${{ steps.get-file-name.outputs.file-name }}
+          asset_name: middleware-javaagent-$RELEASE_VERSION.jar
           asset_content_type: application/java-archive
