@@ -1,0 +1,56 @@
+name: Create Release
+on:
+  push:
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+' # Match tags in the format v1.1.3
+
+jobs:
+  create_release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Set up JDK
+        uses: actions/setup-java@v2
+        with:
+          java-version: '17'
+          distribution: 'adopt'
+
+      - name: Build JAR
+        run: |
+          cd examples/extension
+          ./gradlew build
+
+      - name: Modify Tag name
+        id: get-tag
+        run: |
+          TAG_NAME=${{ github.ref }}
+          if [[ $TAG_NAME == refs/*/v* ]]; then
+            MODIFIED_TAG=${TAG_NAME#refs/*/v}
+          fi
+          echo "modified_tag=$MODIFIED_TAG" >> $GITHUB_OUTPUT
+
+      - name: Create Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.ref }}
+          release_name: Release ${{ github.ref }}
+          body: |
+            Release ${{ github.ref }}
+          draft: false
+          prerelease: false
+
+      - name: Upload JAR as Release Asset
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: ./examples/extension/build/libs/middleware-javaagent.jar
+          asset_name: middleware-javaagent-${{ steps.get-tag.outputs.modified_tag }}.jar
+          asset_content_type: application/java-archive
