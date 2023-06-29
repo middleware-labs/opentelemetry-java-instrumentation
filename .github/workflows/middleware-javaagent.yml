@@ -67,5 +67,5 @@ jobs:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
           asset_path: ./examples/extension/build/libs/middleware-javaagent.jar # Path of JAR file
 #          asset_name: middleware-javaagent-${{ needs.create_release.outputs.modified_tag }}.jar
-          asset_name: middleware-javaagent-$RELEASE_VERSION.jar
+          asset_name: middleware-javaagent-${{ env.RELEASE_VERSION }}.jar
           asset_content_type: application/java-archive
