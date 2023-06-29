@@ -7,10 +7,6 @@ on:
 jobs:
   create_release:
     runs-on: ubuntu-latest
-    outputs:
-      upload_url: ${{ steps.create_release.outputs.upload_url }}
-      modified_tag: ${{ steps.set_modified_tag.outputs.modified_tag }}
-      file_name: ${{ steps.get-file-name.outputs.file-name }}
 
     steps:
       - name: Checkout code
@@ -27,17 +23,8 @@ jobs:
           cd examples/extension
           ./gradlew build
 
-      - name: Set Modified Tag
-        id: set_modified_tag
-        run: |
-          TAG_NAME=${{ github.ref }}
-          if [[ $TAG_NAME == 'refs/tags/v'* ]]; then
-            MODIFIED_TAG=${TAG_NAME#"refs/tags/v"}
-          fi
-          echo "file-name=middleware-javaagent-$MODIFIED_TAG.jar" >> "$GITHUB_OUTPUT"
-
       - name: Get file name
-        id: get-file-name
+        id: get-tag
         run: |
           TAG_NAME=${{ github.ref }}
           if [[ $TAG_NAME == refs/*/v* ]]; then
@@ -61,11 +48,10 @@ jobs:
       - name: Upload JAR as Release Asset
         uses: actions/upload-release-asset@v1
         env:
-          RELEASE_VERSION: ${{ steps.get-file-name.outputs.modified_tag }}
+          RELEASE_VERSION: ${{ steps.get-tag.outputs.modified_tag }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
           asset_path: ./examples/extension/build/libs/middleware-javaagent.jar # Path of JAR file
-#          asset_name: middleware-javaagent-${{ needs.create_release.outputs.modified_tag }}.jar
           asset_name: middleware-javaagent-${{ env.RELEASE_VERSION }}.jar
           asset_content_type: application/java-archive
