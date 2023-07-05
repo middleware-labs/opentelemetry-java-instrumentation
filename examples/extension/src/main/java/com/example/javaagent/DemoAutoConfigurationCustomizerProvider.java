@@ -43,8 +43,9 @@ public class DemoAutoConfigurationCustomizerProvider
   private Map<String, String> getDefaultProperties() {
     Map<String, String> properties = new HashMap<>();
     properties.put("otel.exporter.otlp.endpoint", "http://localhost:9319");
-    properties.put("otel.metrics.exporter", "none");
+    properties.put("otel.metrics.exporter", "otlp");
     properties.put("otel.logs.exporter", "otlp");
+    properties.put("otel.instrumentation.runtime-telemetry-java17.enable-all", "true");
     return properties;
   }
 }
