@@ -9,7 +9,12 @@ import com.google.auto.service.AutoService;
 import io.opentelemetry.sdk.autoconfigure.spi.AutoConfigurationCustomizer;
 import io.opentelemetry.sdk.autoconfigure.spi.AutoConfigurationCustomizerProvider;
 import io.opentelemetry.sdk.autoconfigure.spi.ConfigProperties;
+import io.opentelemetry.api.common.AttributeKey;
+import io.opentelemetry.api.common.Attributes;
 import io.opentelemetry.sdk.logs.SdkLoggerProviderBuilder;
+import io.opentelemetry.sdk.metrics.SdkMeterProviderBuilder;
+import io.opentelemetry.sdk.resources.Resource;
+import java.lang.reflect.Field;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -31,7 +36,26 @@ public class DemoAutoConfigurationCustomizerProvider
   public void customize(AutoConfigurationCustomizer autoConfiguration) {
     autoConfiguration
         .addLoggerProviderCustomizer(this::configureSdkLoggerProvider)
+        .addMeterProviderCustomizer(this::configureSdkMeterProvider)
         .addPropertiesSupplier(this::getDefaultProperties);
+  }
+
+  private SdkMeterProviderBuilder configureSdkMeterProvider(
+      SdkMeterProviderBuilder meterProvider, ConfigProperties config) {
+    try {
+      Field resourceField = meterProvider.getClass().getDeclaredField("resource");
+      resourceField.setAccessible(true);
+      Resource resource = (Resource) resourceField.get(meterProvider);
+      meterProvider.setResource(
+          resource.merge(
+              Resource.create(
+                  Attributes.of(
+                      AttributeKey.stringKey("runtime.metrics.java"), "true",
+                      AttributeKey.stringKey("mw.app.lang"), "java"))));
+    } catch (Exception e) {
+      throw new RuntimeException(e);
+    }
+    return meterProvider;
   }
 
   private SdkLoggerProviderBuilder configureSdkLoggerProvider(
@@ -47,8 +71,6 @@ public class DemoAutoConfigurationCustomizerProvider
     properties.put("otel.metrics.exporter", "otlp");
     properties.put("otel.logs.exporter", "otlp");
     properties.put("otel.instrumentation.runtime-telemetry-java17.enable-all", "true");
-    properties.put("runtime.metrics.java", "true");
-    properties.put("mw.app.lang", "java");
     return properties;
   }
 }
