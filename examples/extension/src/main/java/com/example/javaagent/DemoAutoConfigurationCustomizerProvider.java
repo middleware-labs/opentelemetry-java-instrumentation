@@ -47,6 +47,8 @@ public class DemoAutoConfigurationCustomizerProvider
     properties.put("otel.metrics.exporter", "otlp");
     properties.put("otel.logs.exporter", "otlp");
     properties.put("otel.instrumentation.runtime-telemetry-java17.enable-all", "true");
+    properties.put("runtime.metrics.java", "true");
+    properties.put("mw.app.lang", "java");
     return properties;
   }
 }
