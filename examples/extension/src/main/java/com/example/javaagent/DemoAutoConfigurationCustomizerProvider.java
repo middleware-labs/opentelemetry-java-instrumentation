@@ -5,12 +5,14 @@
 
 package com.example.javaagent;
 
+import com.example.javaagent.config.EnvironmentConfig;
+import com.example.profile.PyroscopeProfile;
 import com.google.auto.service.AutoService;
+import io.opentelemetry.api.common.AttributeKey;
+import io.opentelemetry.api.common.Attributes;
 import io.opentelemetry.sdk.autoconfigure.spi.AutoConfigurationCustomizer;
 import io.opentelemetry.sdk.autoconfigure.spi.AutoConfigurationCustomizerProvider;
 import io.opentelemetry.sdk.autoconfigure.spi.ConfigProperties;
-import io.opentelemetry.api.common.AttributeKey;
-import io.opentelemetry.api.common.Attributes;
 import io.opentelemetry.sdk.logs.SdkLoggerProviderBuilder;
 import io.opentelemetry.sdk.metrics.SdkMeterProviderBuilder;
 import io.opentelemetry.sdk.resources.Resource;
@@ -26,7 +28,6 @@ import java.util.Map;
  * <p>Also see https://github.com/open-telemetry/opentelemetry-java/issues/2022
  *
  * @see AutoConfigurationCustomizerProvider
- * @see DemoPropagatorProvider
  */
 @AutoService(AutoConfigurationCustomizerProvider.class)
 public class DemoAutoConfigurationCustomizerProvider
@@ -34,6 +35,7 @@ public class DemoAutoConfigurationCustomizerProvider
 
   @Override
   public void customize(AutoConfigurationCustomizer autoConfiguration) {
+    PyroscopeProfile.startProfiling();
     autoConfiguration
         .addLoggerProviderCustomizer(this::configureSdkLoggerProvider)
         .addMeterProviderCustomizer(this::configureSdkMeterProvider)
@@ -61,13 +63,13 @@ public class DemoAutoConfigurationCustomizerProvider
   private SdkLoggerProviderBuilder configureSdkLoggerProvider(
       SdkLoggerProviderBuilder loggerProvider, ConfigProperties config) {
 
-    return loggerProvider.addLogRecordProcessor(new DemoLogRecordProcessor());
+    return loggerProvider.addLogRecordProcessor(DemoLogRecordProcessor.getInstance());
   }
 
   private Map<String, String> getDefaultProperties() {
     Map<String, String> properties = new HashMap<>();
-    String hostname = System.getenv().getOrDefault("MW_AGENT_SERVICE", "localhost");
-    properties.put("otel.exporter.otlp.endpoint", "http://" + hostname + ":9319");
+    properties.put(
+        "otel.exporter.otlp.endpoint", "http://" + EnvironmentConfig.MW_AGENT_SERVICE + ":9319");
     properties.put("otel.metrics.exporter", "otlp");
     properties.put("otel.logs.exporter", "otlp");
     properties.put("otel.instrumentation.runtime-telemetry-java17.enable-all", "true");

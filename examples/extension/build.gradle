@@ -22,6 +22,7 @@ version '1.0'
 
 ext {
   versions = [
+    pyroscopeVersion           : "0.11.5",
     // this line is managed by .github/scripts/update-sdk-version.sh
     opentelemetrySdk           : "1.27.0",
 
@@ -63,6 +64,7 @@ spotless {
 }
 
 dependencies {
+  implementation("io.pyroscope:agent:${versions.pyroscopeVersion}")
   implementation(platform("io.opentelemetry:opentelemetry-bom:${versions.opentelemetrySdk}"))
 
   // these serve as a test of the instrumentation boms
