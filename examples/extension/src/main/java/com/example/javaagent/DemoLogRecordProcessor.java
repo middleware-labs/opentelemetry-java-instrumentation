@@ -18,13 +18,17 @@ import io.opentelemetry.sdk.logs.ReadWriteLogRecord;
  * @see DemoAutoConfigurationCustomizerProvider
  */
 public class DemoLogRecordProcessor implements LogRecordProcessor {
-  private static final DemoLogRecordProcessor INSTANCE = new DemoLogRecordProcessor();
+
+  private static DemoLogRecordProcessor instance;
 
   static DemoLogRecordProcessor getInstance() {
-    return INSTANCE;
+    if (instance == null) {
+      instance = new DemoLogRecordProcessor();
+    }
+    return instance;
   }
 
-  public DemoLogRecordProcessor() {}
+  private DemoLogRecordProcessor() {}
 
   @Override
   public void onEmit(Context context, ReadWriteLogRecord logRecord) {
