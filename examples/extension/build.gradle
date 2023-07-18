@@ -64,6 +64,8 @@ spotless {
 }
 
 dependencies {
+  implementation("org.apache.httpcomponents:httpclient:4.5.10")
+  implementation("com.googlecode.json-simple:json-simple:1.1")
   implementation("io.pyroscope:agent:${versions.pyroscopeVersion}")
   implementation(platform("io.opentelemetry:opentelemetry-bom:${versions.opentelemetrySdk}"))
 
