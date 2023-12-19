@@ -22,7 +22,7 @@ version '1.0'
 
 ext {
   versions = [
-    pyroscopeVersion           : "0.11.5",
+    pyroscopeVersion           : "0.12.2",
     // this line is managed by .github/scripts/update-sdk-version.sh
     opentelemetrySdk           : "1.27.0",
 
