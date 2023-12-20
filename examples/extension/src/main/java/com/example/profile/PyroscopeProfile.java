@@ -37,7 +37,8 @@ public class PyroscopeProfile {
             new Config.Builder()
                 .setApplicationName(SystemProperties.SERVICE_NAME)
                 .setProfilingEvent(EventType.ITIMER)
-                .setAllocLive(true)
+                .setProfilingAlloc(EnvironmentConfig.MW_PROFILING_ALLOC)
+                .setProfilingLock(EnvironmentConfig.MW_PROFILING_LOCK)
                 .setServerAddress(EnvironmentConfig.MW_PROFILING_SERVER_URL)
                 .setTenantID(tenantId)
                 .build());
