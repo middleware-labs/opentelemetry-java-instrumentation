@@ -33,13 +33,17 @@ public class PyroscopeProfile {
     try {
       String tenantId = authenticateAndGetTenantId();
       if (tenantId != null) {
+        String profilingServerUrl = EnvironmentConfig.MW_PROFILING_SERVER_URL;
+        if (profilingServerUrl == null) {
+          profilingServerUrl = "https://" + tenantId + ".middleware.io/profiling";
+        }
         PyroscopeAgent.start(
             new Config.Builder()
                 .setApplicationName(SystemProperties.SERVICE_NAME)
                 .setProfilingEvent(EventType.ITIMER)
                 .setProfilingAlloc(EnvironmentConfig.MW_PROFILING_ALLOC)
                 .setProfilingLock(EnvironmentConfig.MW_PROFILING_LOCK)
-                .setServerAddress(EnvironmentConfig.MW_PROFILING_SERVER_URL)
+                .setServerAddress(profilingServerUrl)
                 .setTenantID(tenantId)
                 .build());
       } else {

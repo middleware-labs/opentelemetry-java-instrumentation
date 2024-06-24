@@ -9,7 +9,7 @@ package com.example.javaagent.config;
 public class EnvironmentConfig {
 
   public static final String MW_PROFILING_SERVER_URL =
-      System.getenv().getOrDefault("MW_PROFILING_SERVER_URL", "https://profiling.middleware.io");
+      System.getenv().get("MW_PROFILING_SERVER_URL");
 
   public static final String MW_PROFILING_ALLOC =
       System.getenv().getOrDefault("MW_PROFILING_ALLOC", "512k");
