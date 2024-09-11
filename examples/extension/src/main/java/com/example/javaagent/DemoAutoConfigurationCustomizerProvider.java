@@ -72,6 +72,7 @@ public class DemoAutoConfigurationCustomizerProvider
         "otel.exporter.otlp.endpoint", "http://" + EnvironmentConfig.MW_AGENT_SERVICE + ":9319");
     properties.put("otel.metrics.exporter", "otlp");
     properties.put("otel.logs.exporter", "otlp");
+    properties.put("otel.exporter.otlp.protocol", "grpc");
     properties.put("otel.instrumentation.runtime-telemetry-java17.enable-all", "true");
     return properties;
   }
