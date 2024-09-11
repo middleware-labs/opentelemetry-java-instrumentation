@@ -16,7 +16,7 @@ import io.opentelemetry.sdk.OpenTelemetrySdk
 import io.opentelemetry.sdk.testing.exporter.InMemorySpanExporter
 import io.opentelemetry.sdk.trace.SdkTracerProvider
 import io.opentelemetry.sdk.trace.export.SimpleSpanProcessor
-import io.opentelemetry.semconv.trace.attributes.SemanticAttributes
+import io.opentelemetry.semconv.UrlAttributes
 import ratpack.exec.Execution
 import ratpack.exec.Promise
 import ratpack.func.Action
@@ -34,9 +34,9 @@ import java.util.concurrent.TimeUnit
 
 import static io.opentelemetry.api.trace.SpanKind.CLIENT
 import static io.opentelemetry.api.trace.SpanKind.SERVER
-import static io.opentelemetry.semconv.trace.attributes.SemanticAttributes.HTTP_METHOD
-import static io.opentelemetry.semconv.trace.attributes.SemanticAttributes.HTTP_ROUTE
-import static io.opentelemetry.semconv.trace.attributes.SemanticAttributes.HTTP_STATUS_CODE
+import static io.opentelemetry.semconv.HttpAttributes.HTTP_REQUEST_METHOD
+import static io.opentelemetry.semconv.HttpAttributes.HTTP_ROUTE
+import static io.opentelemetry.semconv.HttpAttributes.HTTP_RESPONSE_STATUS_CODE
 
 class InstrumentedHttpClientTest extends Specification {
 
@@ -86,35 +86,35 @@ class InstrumentedHttpClientTest extends Specification {
     }
 
     app.test { httpClient ->
-      "bar" == httpClient.get("foo").body.text
-    }
+      assert "bar" == httpClient.get("foo").body.text
 
-    new PollingConditions().eventually {
-      def spanData = spanExporter.finishedSpanItems.find { it.name == "GET /foo" }
-      def spanClientData = spanExporter.finishedSpanItems.find { it.name == "GET" && it.kind == CLIENT }
-      def spanDataApi = spanExporter.finishedSpanItems.find { it.name == "GET /bar" && it.kind == SERVER }
+      new PollingConditions().eventually {
+        def spanData = spanExporter.finishedSpanItems.find { it.name == "GET /foo" }
+        def spanClientData = spanExporter.finishedSpanItems.find { it.name == "GET" && it.kind == CLIENT }
+        def spanDataApi = spanExporter.finishedSpanItems.find { it.name == "GET /bar" && it.kind == SERVER }
 
-      spanData.traceId == spanClientData.traceId
-      spanData.traceId == spanDataApi.traceId
+        spanData.traceId == spanClientData.traceId
+        spanData.traceId == spanDataApi.traceId
 
-      spanData.kind == SERVER
-      spanClientData.kind == CLIENT
-      def atts = spanClientData.attributes.asMap()
-      atts[HTTP_ROUTE] == "/bar"
-      atts[HTTP_METHOD] == "GET"
-      atts[HTTP_STATUS_CODE] == 200L
+        spanData.kind == SERVER
+        spanClientData.kind == CLIENT
+        def atts = spanClientData.attributes.asMap()
+        atts[HTTP_ROUTE] == "/bar"
+        atts[HTTP_REQUEST_METHOD] == "GET"
+        atts[HTTP_RESPONSE_STATUS_CODE] == 200L
 
-      def attributes = spanData.attributes.asMap()
-      attributes[HTTP_ROUTE] == "/foo"
-      attributes[SemanticAttributes.HTTP_TARGET] == "/foo"
-      attributes[HTTP_METHOD] == "GET"
-      attributes[HTTP_STATUS_CODE] == 200L
+        def attributes = spanData.attributes.asMap()
+        attributes[HTTP_ROUTE] == "/foo"
+        attributes[UrlAttributes.URL_PATH] == "/foo"
+        attributes[HTTP_REQUEST_METHOD] == "GET"
+        attributes[HTTP_RESPONSE_STATUS_CODE] == 200L
 
-      def attsApi = spanDataApi.attributes.asMap()
-      attsApi[HTTP_ROUTE] == "/bar"
-      attsApi[SemanticAttributes.HTTP_TARGET] == "/bar"
-      attsApi[HTTP_METHOD] == "GET"
-      attsApi[HTTP_STATUS_CODE] == 200L
+        def attsApi = spanDataApi.attributes.asMap()
+        attsApi[HTTP_ROUTE] == "/bar"
+        attsApi[UrlAttributes.URL_PATH] == "/bar"
+        attsApi[HTTP_REQUEST_METHOD] == "GET"
+        attsApi[HTTP_RESPONSE_STATUS_CODE] == 200L
+      }
     }
   }
 
@@ -148,38 +148,38 @@ class InstrumentedHttpClientTest extends Specification {
     }
 
     app.test { httpClient ->
-      "hello" == httpClient.get("path-name").body.text
+      assert "hello" == httpClient.get("path-name").body.text
       latch.await(1, TimeUnit.SECONDS)
-    }
 
-    new PollingConditions().eventually {
-      spanExporter.finishedSpanItems.size() == 3
-      def spanData = spanExporter.finishedSpanItems.find { spanData -> spanData.name == "GET /path-name" }
-      def spanClientData1 = spanExporter.finishedSpanItems.find { s -> s.name == "GET" && s.attributes.asMap()[HTTP_ROUTE] == "/foo" }
-      def spanClientData2 = spanExporter.finishedSpanItems.find { s -> s.name == "GET" && s.attributes.asMap()[HTTP_ROUTE] == "/bar" }
+      new PollingConditions().eventually {
+        spanExporter.finishedSpanItems.size() == 3
+        def spanData = spanExporter.finishedSpanItems.find { spanData -> spanData.name == "GET /path-name" }
+        def spanClientData1 = spanExporter.finishedSpanItems.find { s -> s.name == "GET" && s.attributes.asMap()[HTTP_ROUTE] == "/foo" }
+        def spanClientData2 = spanExporter.finishedSpanItems.find { s -> s.name == "GET" && s.attributes.asMap()[HTTP_ROUTE] == "/bar" }
 
-      spanData.traceId == spanClientData1.traceId
-      spanData.traceId == spanClientData2.traceId
+        spanData.traceId == spanClientData1.traceId
+        spanData.traceId == spanClientData2.traceId
 
-      spanData.kind == SERVER
+        spanData.kind == SERVER
 
-      spanClientData1.kind == CLIENT
-      def atts = spanClientData1.attributes.asMap()
-      atts[HTTP_ROUTE] == "/foo"
-      atts[HTTP_METHOD] == "GET"
-      atts[HTTP_STATUS_CODE] == 200L
+        spanClientData1.kind == CLIENT
+        def atts = spanClientData1.attributes.asMap()
+        atts[HTTP_ROUTE] == "/foo"
+        atts[HTTP_REQUEST_METHOD] == "GET"
+        atts[HTTP_RESPONSE_STATUS_CODE] == 200L
 
-      spanClientData2.kind == CLIENT
-      def atts2 = spanClientData2.attributes.asMap()
-      atts2[HTTP_ROUTE] == "/bar"
-      atts2[HTTP_METHOD] == "GET"
-      atts2[HTTP_STATUS_CODE] == 200L
+        spanClientData2.kind == CLIENT
+        def atts2 = spanClientData2.attributes.asMap()
+        atts2[HTTP_ROUTE] == "/bar"
+        atts2[HTTP_REQUEST_METHOD] == "GET"
+        atts2[HTTP_RESPONSE_STATUS_CODE] == 200L
 
-      def attributes = spanData.attributes.asMap()
-      attributes[HTTP_ROUTE] == "/path-name"
-      attributes[SemanticAttributes.HTTP_TARGET] == "/path-name"
-      attributes[HTTP_METHOD] == "GET"
-      attributes[HTTP_STATUS_CODE] == 200L
+        def attributes = spanData.attributes.asMap()
+        attributes[HTTP_ROUTE] == "/path-name"
+        attributes[UrlAttributes.URL_PATH] == "/path-name"
+        attributes[HTTP_REQUEST_METHOD] == "GET"
+        attributes[HTTP_RESPONSE_STATUS_CODE] == 200L
+      }
     }
   }
 
@@ -214,28 +214,30 @@ class InstrumentedHttpClientTest extends Specification {
       }
     }
 
-    app.test { httpClient -> "error" == httpClient.get("path-name").body.text }
+    app.test { httpClient ->
+      assert "error" == httpClient.get("path-name").body.text
 
-    new PollingConditions().eventually {
-      def spanData = spanExporter.finishedSpanItems.find { it.name == "GET /path-name" }
-      def spanClientData = spanExporter.finishedSpanItems.find { it.name == "GET" }
+      new PollingConditions().eventually {
+        def spanData = spanExporter.finishedSpanItems.find { it.name == "GET /path-name" }
+        def spanClientData = spanExporter.finishedSpanItems.find { it.name == "GET" }
 
-      spanData.traceId == spanClientData.traceId
+        spanData.traceId == spanClientData.traceId
 
-      spanData.kind == SERVER
-      spanClientData.kind == CLIENT
-      def atts = spanClientData.attributes.asMap()
-      atts[HTTP_ROUTE] == "/foo"
-      atts[HTTP_METHOD] == "GET"
-      atts[HTTP_STATUS_CODE] == null
-      spanClientData.status.statusCode == StatusCode.ERROR
-      spanClientData.events.first().name == "exception"
+        spanData.kind == SERVER
+        spanClientData.kind == CLIENT
+        def atts = spanClientData.attributes.asMap()
+        atts[HTTP_ROUTE] == "/foo"
+        atts[HTTP_REQUEST_METHOD] == "GET"
+        atts[HTTP_RESPONSE_STATUS_CODE] == null
+        spanClientData.status.statusCode == StatusCode.ERROR
+        spanClientData.events.first().name == "exception"
 
-      def attributes = spanData.attributes.asMap()
-      attributes[HTTP_ROUTE] == "/path-name"
-      attributes[SemanticAttributes.HTTP_TARGET] == "/path-name"
-      attributes[HTTP_METHOD] == "GET"
-      attributes[HTTP_STATUS_CODE] == 200L
+        def attributes = spanData.attributes.asMap()
+        attributes[HTTP_ROUTE] == "/path-name"
+        attributes[UrlAttributes.URL_PATH] == "/path-name"
+        attributes[HTTP_REQUEST_METHOD] == "GET"
+        attributes[HTTP_RESPONSE_STATUS_CODE] == 200L
+      }
     }
   }
 
@@ -309,15 +311,15 @@ class InstrumentedHttpClientTest extends Specification {
 class BarService implements Service {
   private final String url
   private final CountDownLatch latch
-  private final OpenTelemetry opentelemetry
+  private final OpenTelemetry openTelemetry
 
-  BarService(CountDownLatch latch, String url, OpenTelemetry opentelemetry) {
+  BarService(CountDownLatch latch, String url, OpenTelemetry openTelemetry) {
     this.latch = latch
     this.url = url
-    this.opentelemetry = opentelemetry
+    this.openTelemetry = openTelemetry
   }
 
-  private Tracer tracer = opentelemetry.tracerProvider.tracerBuilder("testing").build()
+  private Tracer tracer = openTelemetry.tracerProvider.tracerBuilder("testing").build()
 
   void onStart(StartEvent event) {
     def parentContext = Context.current()
@@ -343,15 +345,15 @@ class BarService implements Service {
 class BarForkService implements Service {
   private final String url
   private final CountDownLatch latch
-  private final OpenTelemetry opentelemetry
+  private final OpenTelemetry openTelemetry
 
-  BarForkService(CountDownLatch latch, String url, OpenTelemetry opentelemetry) {
+  BarForkService(CountDownLatch latch, String url, OpenTelemetry openTelemetry) {
     this.latch = latch
     this.url = url
-    this.opentelemetry = opentelemetry
+    this.openTelemetry = openTelemetry
   }
 
-  private Tracer tracer = opentelemetry.tracerProvider.tracerBuilder("testing").build()
+  private Tracer tracer = openTelemetry.tracerProvider.tracerBuilder("testing").build()
 
   void onStart(StartEvent event) {
     Execution.fork().start {

@@ -5,12 +5,11 @@
 
 package io.opentelemetry.javaagent.instrumentation.apachehttpclient.v5_0;
 
-import static io.opentelemetry.api.common.AttributeKey.stringKey;
-
 import io.opentelemetry.api.common.AttributeKey;
 import io.opentelemetry.instrumentation.testing.junit.http.AbstractHttpClientTest;
 import io.opentelemetry.instrumentation.testing.junit.http.HttpClientResult;
 import io.opentelemetry.instrumentation.testing.junit.http.HttpClientTestOptions;
+import io.opentelemetry.semconv.NetworkAttributes;
 import java.net.URI;
 import java.time.Duration;
 import java.util.HashSet;
@@ -27,11 +26,9 @@ import org.apache.hc.core5.util.Timeout;
 
 abstract class AbstractApacheHttpClientTest<T extends HttpRequest>
     extends AbstractHttpClientTest<T> {
-  private static final String USER_AGENT = "apachehttpclient";
 
   @Override
   protected void configure(HttpClientTestOptions.Builder optionsBuilder) {
-    optionsBuilder.setUserAgent(USER_AGENT);
     optionsBuilder.setHttpAttributes(this::getHttpAttributes);
   }
 
@@ -43,8 +40,7 @@ abstract class AbstractApacheHttpClientTest<T extends HttpRequest>
         || "https://192.0.2.1/".equals(uri.toString())
         || uri.toString().contains("/read-timeout")
         || uri.toString().contains("/circular-redirect")) {
-      attributes.remove(stringKey("net.protocol.name"));
-      attributes.remove(stringKey("net.protocol.version"));
+      attributes.remove(NetworkAttributes.NETWORK_PROTOCOL_VERSION);
     }
     return attributes;
   }
@@ -52,7 +48,7 @@ abstract class AbstractApacheHttpClientTest<T extends HttpRequest>
   @Override
   public T buildRequest(String method, URI uri, Map<String, String> headers) {
     T request = createRequest(method, uri);
-    request.addHeader("user-agent", USER_AGENT);
+    request.addHeader("user-agent", "apachehttpclient");
     headers.forEach((key, value) -> request.setHeader(new BasicHeader(key, value)));
     return request;
   }

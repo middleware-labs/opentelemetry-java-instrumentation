@@ -6,9 +6,13 @@
 package io.opentelemetry.instrumentation.netty.v4.common.internal.server;
 
 import io.netty.handler.codec.http.HttpResponse;
-import io.opentelemetry.instrumentation.api.instrumenter.http.HttpServerAttributesGetter;
+import io.netty.handler.codec.http.HttpVersion;
+import io.opentelemetry.instrumentation.api.semconv.http.HttpServerAttributesGetter;
 import io.opentelemetry.instrumentation.netty.v4.common.HttpRequestAndChannel;
+import io.opentelemetry.instrumentation.netty.v4.common.internal.ChannelUtil;
 import io.opentelemetry.instrumentation.netty.v4.common.internal.HttpSchemeUtil;
+import java.net.InetSocketAddress;
+import java.net.SocketAddress;
 import java.util.List;
 import javax.annotation.Nullable;
 
@@ -54,5 +58,49 @@ final class NettyHttpServerAttributesGetter
     String fullPath = requestAndChannel.request().getUri();
     int separatorPos = fullPath.indexOf('?');
     return separatorPos == -1 ? null : fullPath.substring(separatorPos + 1);
+  }
+
+  @Override
+  public String getNetworkTransport(
+      HttpRequestAndChannel requestAndChannel, HttpResponse response) {
+    return ChannelUtil.getNetworkTransport(requestAndChannel.channel());
+  }
+
+  @Override
+  public String getNetworkProtocolName(
+      HttpRequestAndChannel requestAndChannel, @Nullable HttpResponse response) {
+    return requestAndChannel.request().getProtocolVersion().protocolName();
+  }
+
+  @Override
+  public String getNetworkProtocolVersion(
+      HttpRequestAndChannel requestAndChannel, @Nullable HttpResponse response) {
+    HttpVersion version = requestAndChannel.request().getProtocolVersion();
+    if (version.minorVersion() == 0) {
+      return Integer.toString(version.majorVersion());
+    }
+    return version.majorVersion() + "." + version.minorVersion();
+  }
+
+  @Override
+  @Nullable
+  public InetSocketAddress getNetworkPeerInetSocketAddress(
+      HttpRequestAndChannel requestAndChannel, @Nullable HttpResponse response) {
+    SocketAddress address = requestAndChannel.remoteAddress();
+    if (address instanceof InetSocketAddress) {
+      return (InetSocketAddress) address;
+    }
+    return null;
+  }
+
+  @Nullable
+  @Override
+  public InetSocketAddress getNetworkLocalInetSocketAddress(
+      HttpRequestAndChannel requestAndChannel, @Nullable HttpResponse response) {
+    SocketAddress address = requestAndChannel.channel().localAddress();
+    if (address instanceof InetSocketAddress) {
+      return (InetSocketAddress) address;
+    }
+    return null;
   }
 }

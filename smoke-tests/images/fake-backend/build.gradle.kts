@@ -5,14 +5,13 @@ import java.time.format.DateTimeFormatter
 
 plugins {
   id("otel.java-conventions")
-
   id("com.bmuschko.docker-remote-api")
-  id("com.github.johnrengelman.shadow")
+  id("com.gradleup.shadow")
   id("com.google.cloud.tools.jib")
 }
 
 dependencies {
-  implementation("com.linecorp.armeria:armeria-grpc:1.24.0")
+  implementation("com.linecorp.armeria:armeria-grpc:1.30.0")
   implementation("io.opentelemetry.proto:opentelemetry-proto")
   runtimeOnly("org.slf4j:slf4j-simple")
 }
@@ -26,7 +25,7 @@ jib {
 }
 
 // windows containers are built manually since jib does not support windows containers yet
-val backendDockerBuildDir = file("$buildDir/docker-backend")
+val backendDockerBuildDir = layout.buildDirectory.dir("docker-backend")
 
 tasks {
   withType<JavaCompile>().configureEach {
@@ -59,7 +58,7 @@ tasks {
     inputDir.set(backendDockerBuildDir)
 
     images.add("ghcr.io/open-telemetry/opentelemetry-java-instrumentation/smoke-test-fake-backend-windows:$extraTag")
-    dockerFile.set(File(backendDockerBuildDir, "windows.dockerfile"))
+    dockerFile.set(File(backendDockerBuildDir.get().asFile, "windows.dockerfile"))
   }
 
   val dockerPush by registering(DockerPushImage::class) {

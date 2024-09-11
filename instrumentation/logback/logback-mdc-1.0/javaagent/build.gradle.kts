@@ -22,6 +22,18 @@ testing {
       }
     }
 
+    val loggingKeysTest by registering(JvmTestSuite::class) {
+      targets {
+        all {
+          testTask.configure {
+            jvmArgs("-Dotel.instrumentation.common.logging.trace-id=trace_id_test")
+            jvmArgs("-Dotel.instrumentation.common.logging.span-id=span_id_test")
+            jvmArgs("-Dotel.instrumentation.common.logging.trace-flags=trace_flags_test")
+          }
+        }
+      }
+    }
+
     withType(JvmTestSuite::class) {
       dependencies {
         if (findProperty("testLatestDeps") as Boolean) {
@@ -63,6 +75,10 @@ dependencies {
 }
 
 tasks {
+  test {
+    jvmArgs("-Dotel.instrumentation.common.mdc.resource-attributes=service.name,telemetry.sdk.language")
+  }
+
   named("check") {
     dependsOn(testing.suites)
   }

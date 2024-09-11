@@ -12,13 +12,14 @@ import io.opentelemetry.api.trace.Span;
 import io.opentelemetry.api.trace.SpanKind;
 import io.opentelemetry.context.Context;
 import io.opentelemetry.instrumentation.api.instrumenter.LocalRootSpan;
-import io.opentelemetry.instrumentation.api.instrumenter.http.HttpRouteHolder;
-import io.opentelemetry.instrumentation.api.instrumenter.http.HttpRouteSource;
 import io.opentelemetry.instrumentation.api.internal.SpanKey;
+import io.opentelemetry.instrumentation.api.semconv.http.HttpServerRoute;
+import io.opentelemetry.instrumentation.api.semconv.http.HttpServerRouteSource;
 import io.opentelemetry.instrumentation.testing.junit.AgentInstrumentationExtension;
 import io.opentelemetry.instrumentation.testing.junit.InstrumentationExtension;
 import io.opentelemetry.javaagent.instrumentation.testing.AgentSpanTesting;
-import io.opentelemetry.semconv.trace.attributes.SemanticAttributes;
+import io.opentelemetry.semconv.ErrorAttributes;
+import io.opentelemetry.semconv.HttpAttributes;
 import java.util.Arrays;
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -80,8 +81,8 @@ class ContextBridgeTest {
     AgentSpanTesting.runWithHttpServerSpan(
         "server",
         () ->
-            HttpRouteHolder.updateHttpRoute(
-                Context.current(), HttpRouteSource.SERVLET, "/test/controller/:id"));
+            HttpServerRoute.update(
+                Context.current(), HttpServerRouteSource.SERVER, "/test/controller/:id"));
 
     testing.waitAndAssertTraces(
         trace ->
@@ -91,8 +92,9 @@ class ContextBridgeTest {
                         .hasKind(SpanKind.SERVER)
                         .hasNoParent()
                         .hasAttributesSatisfyingExactly(
-                            equalTo(SemanticAttributes.HTTP_METHOD, "GET"),
-                            equalTo(SemanticAttributes.HTTP_ROUTE, "/test/server/*"))));
+                            equalTo(HttpAttributes.HTTP_REQUEST_METHOD, "GET"),
+                            equalTo(HttpAttributes.HTTP_ROUTE, "/test/server/*"),
+                            equalTo(ErrorAttributes.ERROR_TYPE, "_OTHER"))));
   }
 
   @Test
@@ -100,8 +102,8 @@ class ContextBridgeTest {
     AgentSpanTesting.runWithHttpServerSpan(
         "server",
         () ->
-            HttpRouteHolder.updateHttpRoute(
-                Context.current(), HttpRouteSource.CONTROLLER, "/test/controller/:id"));
+            HttpServerRoute.update(
+                Context.current(), HttpServerRouteSource.CONTROLLER, "/test/controller/:id"));
 
     testing.waitAndAssertTraces(
         trace ->
@@ -111,7 +113,8 @@ class ContextBridgeTest {
                         .hasKind(SpanKind.SERVER)
                         .hasNoParent()
                         .hasAttributesSatisfyingExactly(
-                            equalTo(SemanticAttributes.HTTP_METHOD, "GET"),
-                            equalTo(SemanticAttributes.HTTP_ROUTE, "/test/controller/:id"))));
+                            equalTo(HttpAttributes.HTTP_REQUEST_METHOD, "GET"),
+                            equalTo(HttpAttributes.HTTP_ROUTE, "/test/controller/:id"),
+                            equalTo(ErrorAttributes.ERROR_TYPE, "_OTHER"))));
   }
 }

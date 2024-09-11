@@ -5,18 +5,17 @@
 
 package io.opentelemetry.javaagent.instrumentation.awssdk.v2_2;
 
-import static java.util.Collections.singletonList;
-import static net.bytebuddy.matcher.ElementMatchers.isConstructor;
-import static net.bytebuddy.matcher.ElementMatchers.named;
+import static io.opentelemetry.javaagent.extension.matcher.AgentElementMatchers.hasClassesNamed;
+import static net.bytebuddy.matcher.ElementMatchers.none;
 
 import com.google.auto.service.AutoService;
 import io.opentelemetry.instrumentation.awssdk.v2_2.SqsAdviceBridge;
 import io.opentelemetry.javaagent.extension.instrumentation.InstrumentationModule;
 import io.opentelemetry.javaagent.extension.instrumentation.TypeInstrumentation;
 import io.opentelemetry.javaagent.extension.instrumentation.TypeTransformer;
+import java.util.ArrayList;
 import java.util.List;
 import net.bytebuddy.asm.Advice;
-import net.bytebuddy.description.type.TypeDescription;
 import net.bytebuddy.matcher.ElementMatcher;
 
 @AutoService(InstrumentationModule.class)
@@ -27,21 +26,22 @@ public class SqsInstrumentationModule extends AbstractAwsSdkInstrumentationModul
   }
 
   @Override
-  public List<TypeInstrumentation> typeInstrumentations() {
-    return singletonList(new DefaultSqsClientTypeInstrumentation());
+  public ElementMatcher.Junction<ClassLoader> classLoaderMatcher() {
+    return hasClassesNamed("software.amazon.awssdk.services.sqs.SqsClient");
   }
 
-  public static class DefaultSqsClientTypeInstrumentation implements TypeInstrumentation {
-    @Override
-    public ElementMatcher<TypeDescription> typeMatcher() {
-      return named("software.amazon.awssdk.services.sqs.DefaultSqsClient");
-    }
+  @Override
+  public List<TypeInstrumentation> typeInstrumentations() {
+    List<TypeInstrumentation> instrumentations = new ArrayList<>(super.typeInstrumentations());
+    instrumentations.add(new DefaultSqsClientBuilderInstrumentation());
+    instrumentations.add(new DefaultSqsAsyncClientBuilderInstrumentation());
+    return instrumentations;
+  }
 
-    @Override
-    public void transform(TypeTransformer transformer) {
-      transformer.applyAdviceToMethod(
-          isConstructor(), SqsInstrumentationModule.class.getName() + "$RegisterAdvice");
-    }
+  @Override
+  public void doTransform(TypeTransformer transformer) {
+    transformer.applyAdviceToMethod(
+        none(), SqsInstrumentationModule.class.getName() + "$RegisterAdvice");
   }
 
   @SuppressWarnings("unused")
@@ -50,7 +50,7 @@ public class SqsInstrumentationModule extends AbstractAwsSdkInstrumentationModul
     public static void onExit() {
       // (indirectly) using SqsImpl class here to make sure it is available from SqsAccess
       // (injected into app classloader) and checked by Muzzle
-      SqsAdviceBridge.init();
+      SqsAdviceBridge.referenceForMuzzleOnly();
     }
   }
 }

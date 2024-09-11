@@ -19,7 +19,7 @@ import io.opentelemetry.api.trace.SpanKind;
 import io.opentelemetry.instrumentation.testing.junit.http.AbstractHttpClientTest;
 import io.opentelemetry.instrumentation.testing.junit.http.HttpClientResult;
 import io.opentelemetry.instrumentation.testing.junit.http.HttpClientTestOptions;
-import io.opentelemetry.semconv.trace.attributes.SemanticAttributes;
+import io.opentelemetry.semconv.ServerAttributes;
 import java.net.URI;
 import java.util.Collections;
 import java.util.HashSet;
@@ -112,6 +112,7 @@ public abstract class AbstractNetty41ClientTest
                 this::configureChannel));
 
     optionsBuilder.disableTestRedirects();
+    optionsBuilder.spanEndsAfterBody();
   }
 
   private static Set<AttributeKey<?>> getHttpAttributes(URI uri) {
@@ -121,8 +122,8 @@ public abstract class AbstractNetty41ClientTest
       return Collections.emptySet();
     }
     Set<AttributeKey<?>> attributes = new HashSet<>(HttpClientTestOptions.DEFAULT_HTTP_ATTRIBUTES);
-    attributes.remove(SemanticAttributes.NET_PEER_NAME);
-    attributes.remove(SemanticAttributes.NET_PEER_PORT);
+    attributes.remove(ServerAttributes.SERVER_ADDRESS);
+    attributes.remove(ServerAttributes.SERVER_PORT);
     return attributes;
   }
 

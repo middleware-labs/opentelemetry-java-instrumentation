@@ -5,18 +5,14 @@
 
 package io.opentelemetry.instrumentation.apachehttpclient.v4_3;
 
-import io.opentelemetry.api.common.AttributeKey;
 import io.opentelemetry.instrumentation.testing.junit.InstrumentationExtension;
 import io.opentelemetry.instrumentation.testing.junit.http.AbstractHttpClientTest;
 import io.opentelemetry.instrumentation.testing.junit.http.HttpClientResult;
 import io.opentelemetry.instrumentation.testing.junit.http.HttpClientTestOptions;
-import io.opentelemetry.semconv.trace.attributes.SemanticAttributes;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.net.URI;
-import java.util.HashSet;
 import java.util.Map;
-import java.util.Set;
 import org.apache.http.HttpHost;
 import org.apache.http.HttpRequest;
 import org.apache.http.HttpResponse;
@@ -59,8 +55,15 @@ public abstract class AbstractApacheHttpClientTest {
     return client;
   }
 
+  abstract static class ApacheHttpClientTest<T> extends AbstractHttpClientTest<T> {
+    @Override
+    protected void configure(HttpClientTestOptions.Builder optionsBuilder) {
+      optionsBuilder.markAsLowLevelInstrumentation();
+    }
+  }
+
   @Nested
-  class ApacheClientHostRequestTest extends AbstractHttpClientTest<BasicHttpRequest> {
+  class ApacheClientHostRequestTest extends ApacheHttpClientTest<BasicHttpRequest> {
 
     @Override
     public BasicHttpRequest buildRequest(String method, URI uri, Map<String, String> headers) {
@@ -94,15 +97,10 @@ public abstract class AbstractApacheHttpClientTest {
         httpClientResult.complete(t);
       }
     }
-
-    @Override
-    protected void configure(HttpClientTestOptions.Builder optionsBuilder) {
-      configureTest(optionsBuilder);
-    }
   }
 
   @Nested
-  class ApacheClientHostRequestContextTest extends AbstractHttpClientTest<BasicHttpRequest> {
+  class ApacheClientHostRequestContextTest extends ApacheHttpClientTest<BasicHttpRequest> {
 
     @Override
     public BasicHttpRequest buildRequest(String method, URI uri, Map<String, String> headers) {
@@ -140,15 +138,10 @@ public abstract class AbstractApacheHttpClientTest {
         httpClientResult.complete(t);
       }
     }
-
-    @Override
-    protected void configure(HttpClientTestOptions.Builder optionsBuilder) {
-      configureTest(optionsBuilder);
-    }
   }
 
   @Nested
-  class ApacheClientHostAbsoluteUriRequestTest extends AbstractHttpClientTest<BasicHttpRequest> {
+  class ApacheClientHostAbsoluteUriRequestTest extends ApacheHttpClientTest<BasicHttpRequest> {
 
     @Override
     public BasicHttpRequest buildRequest(String method, URI uri, Map<String, String> headers) {
@@ -180,17 +173,12 @@ public abstract class AbstractApacheHttpClientTest {
       } catch (Throwable t) {
         httpClientResult.complete(t);
       }
-    }
-
-    @Override
-    protected void configure(HttpClientTestOptions.Builder optionsBuilder) {
-      configureTest(optionsBuilder);
     }
   }
 
   @Nested
   class ApacheClientHostAbsoluteUriRequestContextTest
-      extends AbstractHttpClientTest<BasicHttpRequest> {
+      extends ApacheHttpClientTest<BasicHttpRequest> {
 
     @Override
     public BasicHttpRequest buildRequest(String method, URI uri, Map<String, String> headers) {
@@ -227,15 +215,10 @@ public abstract class AbstractApacheHttpClientTest {
         httpClientResult.complete(t);
       }
     }
-
-    @Override
-    protected void configure(HttpClientTestOptions.Builder optionsBuilder) {
-      configureTest(optionsBuilder);
-    }
   }
 
   @Nested
-  class ApacheClientUriRequestTest extends AbstractHttpClientTest<HttpUriRequest> {
+  class ApacheClientUriRequestTest extends ApacheHttpClientTest<HttpUriRequest> {
 
     @Override
     public HttpUriRequest buildRequest(String method, URI uri, Map<String, String> headers) {
@@ -263,15 +246,10 @@ public abstract class AbstractApacheHttpClientTest {
         httpClientResult.complete(t);
       }
     }
-
-    @Override
-    protected void configure(HttpClientTestOptions.Builder optionsBuilder) {
-      configureTest(optionsBuilder);
-    }
   }
 
   @Nested
-  class ApacheClientUriRequestContextTest extends AbstractHttpClientTest<HttpUriRequest> {
+  class ApacheClientUriRequestContextTest extends ApacheHttpClientTest<HttpUriRequest> {
 
     @Override
     public HttpUriRequest buildRequest(String method, URI uri, Map<String, String> headers) {
@@ -298,11 +276,6 @@ public abstract class AbstractApacheHttpClientTest {
       } catch (Throwable t) {
         httpClientResult.complete(t);
       }
-    }
-
-    @Override
-    protected void configure(HttpClientTestOptions.Builder optionsBuilder) {
-      configureTest(optionsBuilder);
     }
   }
 
@@ -333,18 +306,6 @@ public abstract class AbstractApacheHttpClientTest {
       }
       return response;
     };
-  }
-
-  static void configureTest(HttpClientTestOptions.Builder optionsBuilder) {
-    optionsBuilder.setUserAgent("apachehttpclient");
-    optionsBuilder.setHttpAttributes(
-        endpoint -> {
-          Set<AttributeKey<?>> attributes =
-              new HashSet<>(HttpClientTestOptions.DEFAULT_HTTP_ATTRIBUTES);
-          attributes.add(SemanticAttributes.HTTP_SCHEME);
-          attributes.add(SemanticAttributes.HTTP_TARGET);
-          return attributes;
-        });
   }
 
   static String fullPathFromUri(URI uri) {

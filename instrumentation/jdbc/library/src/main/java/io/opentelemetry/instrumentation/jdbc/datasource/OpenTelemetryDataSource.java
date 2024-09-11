@@ -20,7 +20,7 @@
 
 package io.opentelemetry.instrumentation.jdbc.datasource;
 
-import static io.opentelemetry.instrumentation.jdbc.internal.DataSourceInstrumenterFactory.createDataSourceInstrumenter;
+import static io.opentelemetry.instrumentation.jdbc.internal.JdbcInstrumenterFactory.createDataSourceInstrumenter;
 import static io.opentelemetry.instrumentation.jdbc.internal.JdbcInstrumenterFactory.createStatementInstrumenter;
 import static io.opentelemetry.instrumentation.jdbc.internal.JdbcUtils.computeDbInfo;
 
@@ -45,7 +45,7 @@ import javax.sql.DataSource;
 public class OpenTelemetryDataSource implements DataSource, AutoCloseable {
 
   private final DataSource delegate;
-  private final Instrumenter<DataSource, Void> dataSourceInstrumenter;
+  private final Instrumenter<DataSource, DbInfo> dataSourceInstrumenter;
   private final Instrumenter<DbRequest, Void> statementInstrumenter;
   private volatile DbInfo cachedDbInfo;
 
@@ -66,10 +66,27 @@ public class OpenTelemetryDataSource implements DataSource, AutoCloseable {
    * @param delegate the DataSource to wrap
    * @param openTelemetry the OpenTelemetry instance to setup for
    */
+  @Deprecated
   public OpenTelemetryDataSource(DataSource delegate, OpenTelemetry openTelemetry) {
     this.delegate = delegate;
-    this.dataSourceInstrumenter = createDataSourceInstrumenter(openTelemetry);
+    this.dataSourceInstrumenter = createDataSourceInstrumenter(openTelemetry, true);
     this.statementInstrumenter = createStatementInstrumenter(openTelemetry);
+  }
+
+  /**
+   * Create a OpenTelemetry DataSource wrapping another DataSource.
+   *
+   * @param delegate the DataSource to wrap
+   * @param dataSourceInstrumenter the DataSource Instrumenter to use
+   * @param statementInstrumenter the Statement Instrumenter to use
+   */
+  OpenTelemetryDataSource(
+      DataSource delegate,
+      Instrumenter<DataSource, DbInfo> dataSourceInstrumenter,
+      Instrumenter<DbRequest, Void> statementInstrumenter) {
+    this.delegate = delegate;
+    this.dataSourceInstrumenter = dataSourceInstrumenter;
+    this.statementInstrumenter = statementInstrumenter;
   }
 
   @Override
@@ -128,25 +145,29 @@ public class OpenTelemetryDataSource implements DataSource, AutoCloseable {
     }
   }
 
-  private <T, E extends SQLException> T wrapCall(ThrowingSupplier<T, E> callable) throws E {
+  private Connection wrapCall(ThrowingSupplier<Connection, SQLException> getConnection)
+      throws SQLException {
     Context parentContext = Context.current();
 
-    if (!Span.fromContext(parentContext).getSpanContext().isValid()) {
+    if (!Span.fromContext(parentContext).getSpanContext().isValid()
+        || !dataSourceInstrumenter.shouldStart(parentContext, delegate)) {
       // this instrumentation is already very noisy, and calls to getConnection outside of an
       // existing trace do not tend to be very interesting
-      return callable.call();
+      return getConnection.call();
     }
 
-    Context context = this.dataSourceInstrumenter.start(parentContext, delegate);
-    T result;
+    Context context = dataSourceInstrumenter.start(parentContext, delegate);
+    Connection connection = null;
+    Throwable error = null;
     try (Scope ignored = context.makeCurrent()) {
-      result = callable.call();
+      connection = getConnection.call();
+      return connection;
     } catch (Throwable t) {
-      this.dataSourceInstrumenter.end(context, delegate, null, t);
+      error = t;
       throw t;
+    } finally {
+      dataSourceInstrumenter.end(context, delegate, getDbInfo(connection), error);
     }
-    this.dataSourceInstrumenter.end(context, delegate, null, null);
-    return result;
   }
 
   private DbInfo getDbInfo(Connection connection) {

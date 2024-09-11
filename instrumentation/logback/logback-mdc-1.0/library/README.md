@@ -32,7 +32,7 @@ dependencies {
 
 ### Usage
 
-logback.xml:
+The following demonstrates how you might configure the appender in your `logback.xml` configuration:
 
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
@@ -47,9 +47,17 @@ logback.xml:
   <appender name="OTEL" class="io.opentelemetry.instrumentation.logback.mdc.v1_0.OpenTelemetryAppender">
     <appender-ref ref="CONSOLE"/>
   </appender>
-  ...
+
+  <!-- Use the wrapped "OTEL" appender instead of the original "CONSOLE" one -->
+  <root level="INFO">
+    <appender-ref ref="OTEL"/>
+  </root>
+
 </configuration>
 ```
+
+> It's important to note you can also use other encoders in the `ConsoleAppender` like [logstash-logback-encoder](https://github.com/logfellow/logstash-logback-encoder).
+> This can be helpful when the `Span` is invalid and the `trace_id`, `span_id`, and `trace_flags` are all `null` and are hidden entirely from the logs.
 
 Logging events will automatically have context information from the span context injected. The
 following attributes are available for use:
@@ -57,3 +65,18 @@ following attributes are available for use:
 - `trace_id`
 - `span_id`
 - `trace_flags`
+
+These keys can be customized in your `logback.xml` configuration, for example:
+
+```xml
+<appender name="OTEL" class="io.opentelemetry.instrumentation.logback.mdc.v1_0.OpenTelemetryAppender">
+  <traceIdKey>example_trace_id</traceIdKey>
+  <spanIdKey>example_span_id</spanIdKey>
+  <traceFlagsKey>example_trace_flags</traceFlagsKey>
+</appender>
+```
+
+If you set `<addBaggage>true</addBaggage>` in your `logback.xml` configuration,
+key/value pairs in [baggage](https://opentelemetry.io/docs/concepts/signals/baggage/) will also be added to the MDC.
+
+- `baggage.<entry_name>`

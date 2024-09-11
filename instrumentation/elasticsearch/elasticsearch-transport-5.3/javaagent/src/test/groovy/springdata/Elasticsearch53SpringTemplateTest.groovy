@@ -6,7 +6,7 @@
 package springdata
 
 import io.opentelemetry.instrumentation.test.AgentInstrumentationSpecification
-import io.opentelemetry.semconv.trace.attributes.SemanticAttributes
+import io.opentelemetry.semconv.incubating.DbIncubatingAttributes
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest
 import org.elasticsearch.action.search.SearchResponse
 import org.elasticsearch.common.io.FileSystemUtils
@@ -18,12 +18,14 @@ import org.elasticsearch.node.Node
 import org.elasticsearch.search.aggregations.bucket.nested.InternalNested
 import org.elasticsearch.search.aggregations.bucket.terms.Terms
 import org.elasticsearch.transport.Netty3Plugin
+import org.junit.jupiter.api.Assumptions
 import org.springframework.data.elasticsearch.core.ElasticsearchTemplate
 import org.springframework.data.elasticsearch.core.ResultsExtractor
 import org.springframework.data.elasticsearch.core.query.IndexQueryBuilder
 import org.springframework.data.elasticsearch.core.query.NativeSearchQuery
 import org.springframework.data.elasticsearch.core.query.NativeSearchQueryBuilder
 import spock.lang.Shared
+import spock.util.environment.Jvm
 
 import java.util.concurrent.atomic.AtomicLong
 
@@ -45,7 +47,6 @@ class Elasticsearch53SpringTemplateTest extends AgentInstrumentationSpecificatio
   ElasticsearchTemplate template
 
   def setupSpec() {
-
     esWorkingDir = File.createTempDir("test-es-working-dir-", "")
     esWorkingDir.deleteOnExit()
     println "ES work dir: $esWorkingDir"
@@ -81,6 +82,11 @@ class Elasticsearch53SpringTemplateTest extends AgentInstrumentationSpecificatio
     }
   }
 
+  def setup() {
+    // when running on jdk 21 this test occasionally fails with timeout
+    Assumptions.assumeTrue(Boolean.getBoolean("testLatestDeps") || !Jvm.getCurrent().isJava21Compatible())
+  }
+
   def "test elasticsearch error"() {
     when:
     template.refresh(indexName)
@@ -97,8 +103,8 @@ class Elasticsearch53SpringTemplateTest extends AgentInstrumentationSpecificatio
           status ERROR
           errorEvent IndexNotFoundException, "no such index"
           attributes {
-            "$SemanticAttributes.DB_SYSTEM" "elasticsearch"
-            "$SemanticAttributes.DB_OPERATION" "RefreshAction"
+            "$DbIncubatingAttributes.DB_SYSTEM" "elasticsearch"
+            "$DbIncubatingAttributes.DB_OPERATION" "RefreshAction"
             "elasticsearch.action" "RefreshAction"
             "elasticsearch.request" "RefreshRequest"
             "elasticsearch.request.indices" indexName
@@ -146,8 +152,8 @@ class Elasticsearch53SpringTemplateTest extends AgentInstrumentationSpecificatio
           name "CreateIndexAction"
           kind CLIENT
           attributes {
-            "$SemanticAttributes.DB_SYSTEM" "elasticsearch"
-            "$SemanticAttributes.DB_OPERATION" "CreateIndexAction"
+            "$DbIncubatingAttributes.DB_SYSTEM" "elasticsearch"
+            "$DbIncubatingAttributes.DB_OPERATION" "CreateIndexAction"
             "elasticsearch.action" "CreateIndexAction"
             "elasticsearch.request" "CreateIndexRequest"
             "elasticsearch.request.indices" indexName
@@ -159,8 +165,8 @@ class Elasticsearch53SpringTemplateTest extends AgentInstrumentationSpecificatio
           name "ClusterHealthAction"
           kind CLIENT
           attributes {
-            "$SemanticAttributes.DB_SYSTEM" "elasticsearch"
-            "$SemanticAttributes.DB_OPERATION" "ClusterHealthAction"
+            "$DbIncubatingAttributes.DB_SYSTEM" "elasticsearch"
+            "$DbIncubatingAttributes.DB_OPERATION" "ClusterHealthAction"
             "elasticsearch.action" "ClusterHealthAction"
             "elasticsearch.request" "ClusterHealthRequest"
           }
@@ -171,8 +177,8 @@ class Elasticsearch53SpringTemplateTest extends AgentInstrumentationSpecificatio
           name "SearchAction"
           kind CLIENT
           attributes {
-            "$SemanticAttributes.DB_SYSTEM" "elasticsearch"
-            "$SemanticAttributes.DB_OPERATION" "SearchAction"
+            "$DbIncubatingAttributes.DB_SYSTEM" "elasticsearch"
+            "$DbIncubatingAttributes.DB_OPERATION" "SearchAction"
             "elasticsearch.action" "SearchAction"
             "elasticsearch.request" "SearchRequest"
             "elasticsearch.request.indices" indexName
@@ -185,8 +191,8 @@ class Elasticsearch53SpringTemplateTest extends AgentInstrumentationSpecificatio
           name "IndexAction"
           kind CLIENT
           attributes {
-            "$SemanticAttributes.DB_SYSTEM" "elasticsearch"
-            "$SemanticAttributes.DB_OPERATION" "IndexAction"
+            "$DbIncubatingAttributes.DB_SYSTEM" "elasticsearch"
+            "$DbIncubatingAttributes.DB_OPERATION" "IndexAction"
             "elasticsearch.action" "IndexAction"
             "elasticsearch.request" "IndexRequest"
             "elasticsearch.request.indices" indexName
@@ -204,8 +210,8 @@ class Elasticsearch53SpringTemplateTest extends AgentInstrumentationSpecificatio
           name "RefreshAction"
           kind CLIENT
           attributes {
-            "$SemanticAttributes.DB_SYSTEM" "elasticsearch"
-            "$SemanticAttributes.DB_OPERATION" "RefreshAction"
+            "$DbIncubatingAttributes.DB_SYSTEM" "elasticsearch"
+            "$DbIncubatingAttributes.DB_OPERATION" "RefreshAction"
             "elasticsearch.action" "RefreshAction"
             "elasticsearch.request" "RefreshRequest"
             "elasticsearch.request.indices" indexName
@@ -220,8 +226,8 @@ class Elasticsearch53SpringTemplateTest extends AgentInstrumentationSpecificatio
           name "SearchAction"
           kind CLIENT
           attributes {
-            "$SemanticAttributes.DB_SYSTEM" "elasticsearch"
-            "$SemanticAttributes.DB_OPERATION" "SearchAction"
+            "$DbIncubatingAttributes.DB_SYSTEM" "elasticsearch"
+            "$DbIncubatingAttributes.DB_OPERATION" "SearchAction"
             "elasticsearch.action" "SearchAction"
             "elasticsearch.request" "SearchRequest"
             "elasticsearch.request.indices" indexName
@@ -297,8 +303,8 @@ class Elasticsearch53SpringTemplateTest extends AgentInstrumentationSpecificatio
           name "SearchAction"
           kind CLIENT
           attributes {
-            "$SemanticAttributes.DB_SYSTEM" "elasticsearch"
-            "$SemanticAttributes.DB_OPERATION" "SearchAction"
+            "$DbIncubatingAttributes.DB_SYSTEM" "elasticsearch"
+            "$DbIncubatingAttributes.DB_OPERATION" "SearchAction"
             "elasticsearch.action" "SearchAction"
             "elasticsearch.request" "SearchRequest"
             "elasticsearch.request.indices" indexName

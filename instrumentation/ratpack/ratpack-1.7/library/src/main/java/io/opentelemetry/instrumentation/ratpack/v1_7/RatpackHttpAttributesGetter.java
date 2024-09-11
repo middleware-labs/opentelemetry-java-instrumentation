@@ -5,7 +5,7 @@
 
 package io.opentelemetry.instrumentation.ratpack.v1_7;
 
-import io.opentelemetry.instrumentation.api.instrumenter.http.HttpServerAttributesGetter;
+import io.opentelemetry.instrumentation.api.semconv.http.HttpServerAttributesGetter;
 import java.util.List;
 import javax.annotation.Nullable;
 import ratpack.handling.Context;
@@ -61,5 +61,30 @@ enum RatpackHttpAttributesGetter implements HttpServerAttributesGetter<Request, 
   @Override
   public List<String> getHttpResponseHeader(Request request, Response response, String name) {
     return response.getHeaders().getAll(name);
+  }
+
+  @Nullable
+  @Override
+  public String getNetworkProtocolName(Request request, @Nullable Response response) {
+    String protocol = request.getProtocol();
+    if (protocol.startsWith("HTTP/")) {
+      return "http";
+    }
+    return null;
+  }
+
+  @Nullable
+  @Override
+  public String getNetworkProtocolVersion(Request request, @Nullable Response response) {
+    String protocol = request.getProtocol();
+    if (protocol.startsWith("HTTP/")) {
+      return protocol.substring("HTTP/".length());
+    }
+    return null;
+  }
+
+  @Override
+  public Integer getNetworkPeerPort(Request request, @Nullable Response response) {
+    return request.getRemoteAddress().getPort();
   }
 }

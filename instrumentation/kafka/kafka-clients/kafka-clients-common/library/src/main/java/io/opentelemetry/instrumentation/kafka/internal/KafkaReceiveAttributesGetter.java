@@ -5,7 +5,7 @@
 
 package io.opentelemetry.instrumentation.kafka.internal;
 
-import io.opentelemetry.instrumentation.api.instrumenter.messaging.MessagingAttributesGetter;
+import io.opentelemetry.instrumentation.api.incubator.semconv.messaging.MessagingAttributesGetter;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Set;
@@ -33,8 +33,19 @@ enum KafkaReceiveAttributesGetter implements MessagingAttributesGetter<KafkaRece
     return topics.size() == 1 ? topics.iterator().next() : null;
   }
 
+  @Nullable
+  @Override
+  public String getDestinationTemplate(KafkaReceiveRequest request) {
+    return null;
+  }
+
   @Override
   public boolean isTemporaryDestination(KafkaReceiveRequest request) {
+    return false;
+  }
+
+  @Override
+  public boolean isAnonymousDestination(KafkaReceiveRequest request) {
     return false;
   }
 
@@ -44,15 +55,15 @@ enum KafkaReceiveAttributesGetter implements MessagingAttributesGetter<KafkaRece
     return null;
   }
 
-  @Override
   @Nullable
-  public Long getMessagePayloadSize(KafkaReceiveRequest request) {
+  @Override
+  public Long getMessageBodySize(KafkaReceiveRequest request) {
     return null;
   }
 
-  @Override
   @Nullable
-  public Long getMessagePayloadCompressedSize(KafkaReceiveRequest request) {
+  @Override
+  public Long getMessageEnvelopeSize(KafkaReceiveRequest request) {
     return null;
   }
 
@@ -60,6 +71,17 @@ enum KafkaReceiveAttributesGetter implements MessagingAttributesGetter<KafkaRece
   @Nullable
   public String getMessageId(KafkaReceiveRequest request, @Nullable Void unused) {
     return null;
+  }
+
+  @Nullable
+  @Override
+  public String getClientId(KafkaReceiveRequest request) {
+    return request.getClientId();
+  }
+
+  @Override
+  public Long getBatchMessageCount(KafkaReceiveRequest request, @Nullable Void unused) {
+    return (long) request.getRecords().count();
   }
 
   @Override

@@ -5,9 +5,10 @@
 
 package server
 
-
+import io.opentelemetry.instrumentation.api.internal.HttpConstants
 import io.opentelemetry.instrumentation.test.AgentTestTrait
 import io.opentelemetry.instrumentation.test.base.HttpServerTest
+import io.opentelemetry.instrumentation.testing.junit.http.ServerEndpoint
 import io.vertx.core.AbstractVerticle
 import io.vertx.core.DeploymentOptions
 import io.vertx.core.Vertx
@@ -55,5 +56,21 @@ abstract class AbstractVertxHttpServerTest extends HttpServerTest<Vertx> impleme
   boolean verifyServerSpanEndTime() {
     // server spans are ended inside of the controller spans
     return false
+  }
+
+  @Override
+  String getContextPath() {
+    "/vertx-app"
+  }
+
+  @Override
+  String expectedHttpRoute(ServerEndpoint endpoint, String method) {
+    if (method == HttpConstants._OTHER) {
+      return getContextPath() + endpoint.path
+    }
+    if (endpoint == ServerEndpoint.NOT_FOUND) {
+      return getContextPath()
+    }
+    return super.expectedHttpRoute(endpoint, method)
   }
 }

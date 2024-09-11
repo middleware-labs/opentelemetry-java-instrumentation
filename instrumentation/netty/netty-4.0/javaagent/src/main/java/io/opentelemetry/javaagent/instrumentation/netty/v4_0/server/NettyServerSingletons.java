@@ -10,7 +10,7 @@ import io.opentelemetry.api.GlobalOpenTelemetry;
 import io.opentelemetry.instrumentation.api.instrumenter.Instrumenter;
 import io.opentelemetry.instrumentation.netty.v4.common.HttpRequestAndChannel;
 import io.opentelemetry.instrumentation.netty.v4.common.internal.server.NettyServerInstrumenterFactory;
-import io.opentelemetry.javaagent.bootstrap.internal.CommonConfig;
+import io.opentelemetry.javaagent.bootstrap.internal.AgentCommonConfig;
 
 public final class NettyServerSingletons {
 
@@ -18,8 +18,14 @@ public final class NettyServerSingletons {
       NettyServerInstrumenterFactory.create(
           GlobalOpenTelemetry.get(),
           "io.opentelemetry.netty-4.0",
-          CommonConfig.get().getServerRequestHeaders(),
-          CommonConfig.get().getServerResponseHeaders());
+          builder ->
+              builder
+                  .setCapturedRequestHeaders(AgentCommonConfig.get().getServerRequestHeaders())
+                  .setCapturedResponseHeaders(AgentCommonConfig.get().getServerResponseHeaders())
+                  .setKnownMethods(AgentCommonConfig.get().getKnownHttpRequestMethods()),
+          builder -> builder.setKnownMethods(AgentCommonConfig.get().getKnownHttpRequestMethods()),
+          builder -> builder.setKnownMethods(AgentCommonConfig.get().getKnownHttpRequestMethods()),
+          AgentCommonConfig.get().shouldEmitExperimentalHttpServerTelemetry());
 
   public static Instrumenter<HttpRequestAndChannel, HttpResponse> instrumenter() {
     return INSTRUMENTER;

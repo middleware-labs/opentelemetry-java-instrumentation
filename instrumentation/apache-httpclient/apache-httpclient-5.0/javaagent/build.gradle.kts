@@ -13,3 +13,9 @@ muzzle {
 dependencies {
   library("org.apache.httpcomponents.client5:httpclient5:5.0")
 }
+
+tasks {
+  withType<Test>().configureEach {
+    systemProperty("testLatestDeps", findProperty("testLatestDeps") as Boolean)
+  }
+}

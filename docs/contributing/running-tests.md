@@ -38,6 +38,18 @@ To run these tests locally, add `-PtestLatestDeps=true` to your existing `gradle
 
 Executing `./gradlew :instrumentation:<INSTRUMENTATION_NAME>:test --tests <GROOVY TEST FILE NAME>` will run only the selected test.
 
+### How to prevent linting and formatting warnings from failing tests
+
+During local development, you may want to ignore lint warnings when running tests.
+
+To ignore warnings, formatting issues, or other non-fatal issues in tests, use
+
+```
+./gradlew test -Ddev=true -x spotlessCheck -x checkstyleMain
+```
+
+The `dev` flag will ignore warnings in tests.
+
 ## Smoke tests
 
 The smoke tests are not run as part of a global `test` task run since they take a long time and are
@@ -55,17 +67,55 @@ If you are on Windows and you want to run the tests using linux containers:
 USE_LINUX_CONTAINERS=1 ./gradlew :smoke-tests:test -PsmokeTestSuite=payara
 ```
 
+If you want to run a specific smoke test:
+
+```
+./gradlew :smoke-tests:test --tests '*SpringBootSmokeTest*'
+```
+
+## Smoke OpenTelemetry starter tests
+
+Smoke tests for the [OpenTelemetry Spring starter](../../instrumentation/spring/starters/spring-boot-starter/README.md).
+
+You can execute the tests in a JVM (`./gradlew smoke-tests-otel-starter:test`) or as Spring native tests (`./gradlew smoke-tests-otel-starter:nativeTest`).
+
 ## GraalVM native test
 
-Some tests can be executed as GraalVM native executables:
+To execute all the instrumentation tests runnable as GraalVM native executables:
 
 ```
 ./gradlew nativeTest
 ```
 
+[A Github workflow](../../.github/workflows/native-tests-daily.yml) executes the native tests every day.
 
 ## Docker disk space
 
 Some of the instrumentation tests (and all of the smoke tests) spin up docker containers via
 [testcontainers](https://www.testcontainers.org/). If you run out of space, you may wish to prune
 old containers, images and volumes using `docker system prune --volumes`.
+
+## Configuring Docker alternative
+
+For some container environments, such as rootless Podman or a remotely hosted Docker,
+testcontainers may need additional configuration to successfully run the tests.
+The following environment variables can be used for configuration:
+ - `TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE` - The location of the Docker socket on the host. Default is `/var/run/docker.sock`
+ - `TESTCONTAINERS_HOST_OVERRIDE` - The hostname used for container-to-container communication. Default Docker is `localhost`, but rootless Podman uses `host.containers.internal`
+
+# Troubleshooting CI Test Failures
+
+CI test logs are pretty big around 75MB. To make it easier to troubleshoot test failures, you can download the raw logs from the CI job and then look for
+`Publishing build scan...` in the logs. Copy the URL from the logs and open it in a browser. This will give you a nice view of the test execution breakdown.
+
+## How to download the raw logs
+
+1. Click on the `Details` link in one of the failing CI jobs under `Some checks were not successful` section of your PR.
+2. Click on one of the failed tests in the left panel.
+3. Click on the `Setting` gear in the top right corner of the logs panel.
+4. Right click on 'View raw logs' and then 'Save link as' to save the page as a text file locally.
+5. Once the file is downloaded, open it in a text editor and search for `Publishing build scan...` to find the URL.
+6. Open the URL in a browser to view the test execution breakdown. It might prompt you to "Activate your Build Scan" the very 1st time, you can use your own email address and activate it via email.
+
+Unfortunately, the Build Scan service hosted via Develocity has an allowed size limits of the free build scans. Once you exceed the limit, then you won't be able to view the scan anymore.
+Then you can just use the raw logs to search for "FAILED" or "Task failed with an exception" to identify the failing tests.

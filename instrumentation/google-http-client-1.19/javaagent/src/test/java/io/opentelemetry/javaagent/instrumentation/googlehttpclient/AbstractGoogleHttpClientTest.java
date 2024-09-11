@@ -5,7 +5,6 @@
 
 package io.opentelemetry.javaagent.instrumentation.googlehttpclient;
 
-import static io.opentelemetry.api.common.AttributeKey.stringKey;
 import static io.opentelemetry.sdk.testing.assertj.OpenTelemetryAssertions.assertThat;
 import static io.opentelemetry.sdk.testing.assertj.OpenTelemetryAssertions.equalTo;
 import static io.opentelemetry.sdk.testing.assertj.OpenTelemetryAssertions.satisfies;
@@ -22,14 +21,23 @@ import io.opentelemetry.instrumentation.testing.junit.InstrumentationExtension;
 import io.opentelemetry.instrumentation.testing.junit.http.AbstractHttpClientTest;
 import io.opentelemetry.instrumentation.testing.junit.http.HttpClientInstrumentationExtension;
 import io.opentelemetry.instrumentation.testing.junit.http.HttpClientTestOptions;
+import io.opentelemetry.sdk.testing.assertj.AttributeAssertion;
 import io.opentelemetry.sdk.trace.data.StatusData;
-import io.opentelemetry.semconv.trace.attributes.SemanticAttributes;
+import io.opentelemetry.semconv.ErrorAttributes;
+import io.opentelemetry.semconv.HttpAttributes;
+import io.opentelemetry.semconv.NetworkAttributes;
+import io.opentelemetry.semconv.ServerAttributes;
+import io.opentelemetry.semconv.UrlAttributes;
 import java.net.URI;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import org.assertj.core.api.AbstractLongAssert;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
@@ -75,7 +83,10 @@ public abstract class AbstractGoogleHttpClientTest extends AbstractHttpClientTes
       throws Exception {
     HttpResponse response = sendRequest(request);
     // read request body to avoid broken pipe errors on the server side
-    response.parseAsString();
+    // skip reading body of long-request to make the test a bit faster
+    if (!uri.toString().contains("/long-request")) {
+      response.parseAsString();
+    }
     return response.getStatusCode();
   }
 
@@ -89,21 +100,24 @@ public abstract class AbstractGoogleHttpClientTest extends AbstractHttpClientTes
     int responseCode = sendRequest(request, "GET", uri, Collections.emptyMap());
 
     assertThat(responseCode).isEqualTo(500);
+
+    List<AttributeAssertion> attributes =
+        new ArrayList<>(
+            Arrays.asList(
+                equalTo(ServerAttributes.SERVER_ADDRESS, "localhost"),
+                satisfies(ServerAttributes.SERVER_PORT, AbstractLongAssert::isPositive),
+                equalTo(UrlAttributes.URL_FULL, uri.toString()),
+                equalTo(HttpAttributes.HTTP_REQUEST_METHOD, "GET"),
+                equalTo(HttpAttributes.HTTP_RESPONSE_STATUS_CODE, 500),
+                equalTo(ErrorAttributes.ERROR_TYPE, "500")));
+
     testing.waitAndAssertTraces(
         trace ->
             trace.hasSpansSatisfyingExactly(
                 span ->
                     span.hasKind(SpanKind.CLIENT)
                         .hasStatus(StatusData.error())
-                        .hasAttributesSatisfyingExactly(
-                            equalTo(SemanticAttributes.NET_PEER_NAME, "localhost"),
-                            satisfies(SemanticAttributes.NET_PEER_PORT, port -> port.isPositive()),
-                            equalTo(SemanticAttributes.HTTP_URL, uri.toString()),
-                            equalTo(SemanticAttributes.HTTP_METHOD, "GET"),
-                            equalTo(SemanticAttributes.HTTP_STATUS_CODE, 500),
-                            satisfies(
-                                SemanticAttributes.HTTP_RESPONSE_CONTENT_LENGTH,
-                                length -> length.isPositive())),
+                        .hasAttributesSatisfyingExactly(attributes),
                 span -> span.hasKind(SpanKind.SERVER).hasParent(trace.getSpan(0))));
   }
 
@@ -118,12 +132,14 @@ public abstract class AbstractGoogleHttpClientTest extends AbstractHttpClientTes
     // Circular redirects don't throw an exception with Google Http Client
     optionsBuilder.disableTestCircularRedirects();
 
+    // can only use supported method
+    optionsBuilder.disableTestNonStandardHttpMethod();
+
     optionsBuilder.setHttpAttributes(
         uri -> {
           Set<AttributeKey<?>> attributes =
               new HashSet<>(HttpClientTestOptions.DEFAULT_HTTP_ATTRIBUTES);
-          attributes.remove(stringKey("net.protocol.name"));
-          attributes.remove(stringKey("net.protocol.version"));
+          attributes.remove(NetworkAttributes.NETWORK_PROTOCOL_VERSION);
           return attributes;
         });
   }

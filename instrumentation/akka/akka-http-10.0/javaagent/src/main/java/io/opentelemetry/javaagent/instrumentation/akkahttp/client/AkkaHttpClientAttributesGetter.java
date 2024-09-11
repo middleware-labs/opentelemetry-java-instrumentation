@@ -7,7 +7,7 @@ package io.opentelemetry.javaagent.instrumentation.akkahttp.client;
 
 import akka.http.scaladsl.model.HttpRequest;
 import akka.http.scaladsl.model.HttpResponse;
-import io.opentelemetry.instrumentation.api.instrumenter.http.HttpClientAttributesGetter;
+import io.opentelemetry.instrumentation.api.semconv.http.HttpClientAttributesGetter;
 import io.opentelemetry.javaagent.instrumentation.akkahttp.AkkaHttpUtil;
 import java.util.List;
 import javax.annotation.Nullable;
@@ -40,5 +40,29 @@ class AkkaHttpClientAttributesGetter
   public List<String> getHttpResponseHeader(
       HttpRequest httpRequest, HttpResponse httpResponse, String name) {
     return AkkaHttpUtil.responseHeader(httpResponse, name);
+  }
+
+  @Nullable
+  @Override
+  public String getNetworkProtocolName(
+      HttpRequest httpRequest, @Nullable HttpResponse httpResponse) {
+    return AkkaHttpUtil.protocolName(httpRequest);
+  }
+
+  @Nullable
+  @Override
+  public String getNetworkProtocolVersion(
+      HttpRequest httpRequest, @Nullable HttpResponse httpResponse) {
+    return AkkaHttpUtil.protocolVersion(httpRequest);
+  }
+
+  @Override
+  public String getServerAddress(HttpRequest httpRequest) {
+    return httpRequest.uri().authority().host().address();
+  }
+
+  @Override
+  public Integer getServerPort(HttpRequest httpRequest) {
+    return httpRequest.uri().authority().port();
   }
 }

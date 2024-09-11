@@ -12,11 +12,11 @@ import static io.opentelemetry.instrumentation.testing.junit.http.ServerEndpoint
 import static io.opentelemetry.instrumentation.testing.junit.http.ServerEndpoint.INDEXED_CHILD;
 import static io.opentelemetry.instrumentation.testing.junit.http.ServerEndpoint.NOT_FOUND;
 import static io.opentelemetry.instrumentation.testing.junit.http.ServerEndpoint.PATH_PARAM;
-import static io.opentelemetry.instrumentation.testing.junit.http.ServerEndpoint.QUERY_PARAM;
 import static io.opentelemetry.instrumentation.testing.junit.http.ServerEndpoint.REDIRECT;
 import static io.opentelemetry.instrumentation.testing.junit.http.ServerEndpoint.SUCCESS;
 import static io.opentelemetry.sdk.testing.assertj.OpenTelemetryAssertions.assertThat;
 import static io.opentelemetry.sdk.testing.assertj.OpenTelemetryAssertions.equalTo;
+import static org.junit.jupiter.api.Assumptions.assumeFalse;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import com.google.errorprone.annotations.CanIgnoreReturnValue;
@@ -27,13 +27,19 @@ import io.opentelemetry.api.trace.SpanKind;
 import io.opentelemetry.context.Context;
 import io.opentelemetry.context.propagation.TextMapPropagator;
 import io.opentelemetry.context.propagation.TextMapSetter;
-import io.opentelemetry.instrumentation.api.instrumenter.net.internal.NetAttributes;
+import io.opentelemetry.instrumentation.api.internal.HttpConstants;
 import io.opentelemetry.instrumentation.testing.GlobalTraceUtil;
 import io.opentelemetry.sdk.testing.assertj.SpanDataAssert;
 import io.opentelemetry.sdk.testing.assertj.TraceAssert;
 import io.opentelemetry.sdk.trace.data.SpanData;
 import io.opentelemetry.sdk.trace.data.StatusData;
-import io.opentelemetry.semconv.trace.attributes.SemanticAttributes;
+import io.opentelemetry.semconv.ClientAttributes;
+import io.opentelemetry.semconv.ErrorAttributes;
+import io.opentelemetry.semconv.HttpAttributes;
+import io.opentelemetry.semconv.NetworkAttributes;
+import io.opentelemetry.semconv.ServerAttributes;
+import io.opentelemetry.semconv.UrlAttributes;
+import io.opentelemetry.semconv.UserAgentAttributes;
 import io.opentelemetry.testing.internal.armeria.common.AggregatedHttpRequest;
 import io.opentelemetry.testing.internal.armeria.common.AggregatedHttpResponse;
 import io.opentelemetry.testing.internal.armeria.common.HttpData;
@@ -67,6 +73,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
@@ -117,7 +124,12 @@ public abstract class AbstractHttpServerTest<SERVER> extends AbstractHttpServerU
   }
 
   protected AggregatedHttpRequest request(ServerEndpoint uri, String method) {
-    return AggregatedHttpRequest.of(HttpMethod.valueOf(method), resolveAddress(uri));
+    return AggregatedHttpRequest.of(
+        HttpMethod.valueOf(method), resolveAddress(uri, getProtocolPrefix()));
+  }
+
+  private String getProtocolPrefix() {
+    return options.useHttp2 ? "h2c://" : "h1c://";
   }
 
   @ParameterizedTest
@@ -136,7 +148,7 @@ public abstract class AbstractHttpServerTest<SERVER> extends AbstractHttpServerU
       assertResponseHasCustomizedHeaders(response, SUCCESS, null);
     }
 
-    assertTheTraces(count, null, null, null, method, SUCCESS, responses.get(0));
+    assertTheTraces(count, null, null, null, method, SUCCESS);
   }
 
   @Test
@@ -157,7 +169,7 @@ public abstract class AbstractHttpServerTest<SERVER> extends AbstractHttpServerU
     assertThat(response.contentUtf8()).isEqualTo(SUCCESS.getBody());
 
     String spanId = assertResponseHasCustomizedHeaders(response, SUCCESS, traceId);
-    assertTheTraces(1, traceId, parentId, spanId, "GET", SUCCESS, response);
+    assertTheTraces(1, traceId, parentId, spanId, "GET", SUCCESS);
   }
 
   @Test
@@ -176,7 +188,7 @@ public abstract class AbstractHttpServerTest<SERVER> extends AbstractHttpServerU
     assertThat(response.contentUtf8()).isEqualTo(SUCCESS.getBody());
 
     String spanId = assertResponseHasCustomizedHeaders(response, SUCCESS, traceId);
-    assertTheTraces(1, traceId, parentId, spanId, "GET", SUCCESS, response);
+    assertTheTraces(1, traceId, parentId, spanId, "GET", SUCCESS);
   }
 
   @ParameterizedTest
@@ -190,7 +202,7 @@ public abstract class AbstractHttpServerTest<SERVER> extends AbstractHttpServerU
     assertThat(response.contentUtf8()).isEqualTo(endpoint.getBody());
 
     String spanId = assertResponseHasCustomizedHeaders(response, endpoint, null);
-    assertTheTraces(1, null, null, spanId, method, endpoint, response);
+    assertTheTraces(1, null, null, spanId, method, endpoint);
   }
 
   private static Stream<ServerEndpoint> provideServerEndpoints() {
@@ -214,7 +226,7 @@ public abstract class AbstractHttpServerTest<SERVER> extends AbstractHttpServerU
                     .isEqualTo(address.resolve(REDIRECT.getBody()).toString()));
 
     String spanId = assertResponseHasCustomizedHeaders(response, REDIRECT, null);
-    assertTheTraces(1, null, null, spanId, method, REDIRECT, response);
+    assertTheTraces(1, null, null, spanId, method, REDIRECT);
   }
 
   @Test
@@ -231,7 +243,7 @@ public abstract class AbstractHttpServerTest<SERVER> extends AbstractHttpServerU
     }
 
     String spanId = assertResponseHasCustomizedHeaders(response, ERROR, null);
-    assertTheTraces(1, null, null, spanId, method, ERROR, response);
+    assertTheTraces(1, null, null, spanId, method, ERROR);
   }
 
   @Test
@@ -249,7 +261,7 @@ public abstract class AbstractHttpServerTest<SERVER> extends AbstractHttpServerU
       assertThat(response.status().code()).isEqualTo(EXCEPTION.getStatus());
 
       String spanId = assertResponseHasCustomizedHeaders(response, EXCEPTION, null);
-      assertTheTraces(1, null, null, spanId, method, EXCEPTION, response);
+      assertTheTraces(1, null, null, spanId, method, EXCEPTION);
     } finally {
       Awaitility.reset();
     }
@@ -266,7 +278,7 @@ public abstract class AbstractHttpServerTest<SERVER> extends AbstractHttpServerU
     assertThat(response.status().code()).isEqualTo(NOT_FOUND.getStatus());
 
     String spanId = assertResponseHasCustomizedHeaders(response, NOT_FOUND, null);
-    assertTheTraces(1, null, null, spanId, method, NOT_FOUND, response);
+    assertTheTraces(1, null, null, spanId, method, NOT_FOUND);
   }
 
   @Test
@@ -281,7 +293,7 @@ public abstract class AbstractHttpServerTest<SERVER> extends AbstractHttpServerU
     assertThat(response.contentUtf8()).isEqualTo(PATH_PARAM.getBody());
 
     String spanId = assertResponseHasCustomizedHeaders(response, PATH_PARAM, null);
-    assertTheTraces(1, null, null, spanId, method, PATH_PARAM, response);
+    assertTheTraces(1, null, null, spanId, method, PATH_PARAM);
   }
 
   @Test
@@ -300,7 +312,7 @@ public abstract class AbstractHttpServerTest<SERVER> extends AbstractHttpServerU
     assertThat(response.headers().get("X-Test-Response")).isEqualTo("test");
 
     String spanId = assertResponseHasCustomizedHeaders(response, CAPTURE_HEADERS, null);
-    assertTheTraces(1, null, null, spanId, "GET", CAPTURE_HEADERS, response);
+    assertTheTraces(1, null, null, spanId, "GET", CAPTURE_HEADERS);
   }
 
   @Test
@@ -310,7 +322,8 @@ public abstract class AbstractHttpServerTest<SERVER> extends AbstractHttpServerU
     QueryParams formBody = QueryParams.builder().add("test-parameter", "test value õäöü").build();
     AggregatedHttpRequest request =
         AggregatedHttpRequest.of(
-            RequestHeaders.builder(HttpMethod.POST, resolveAddress(CAPTURE_PARAMETERS))
+            RequestHeaders.builder(
+                    HttpMethod.POST, resolveAddress(CAPTURE_PARAMETERS, getProtocolPrefix()))
                 .contentType(MediaType.FORM_DATA)
                 .build(),
             HttpData.ofUtf8(formBody.toQueryString()));
@@ -320,7 +333,39 @@ public abstract class AbstractHttpServerTest<SERVER> extends AbstractHttpServerU
     assertThat(response.contentUtf8()).isEqualTo(CAPTURE_PARAMETERS.getBody());
 
     String spanId = assertResponseHasCustomizedHeaders(response, CAPTURE_PARAMETERS, null);
-    assertTheTraces(1, null, null, spanId, "POST", CAPTURE_PARAMETERS, response);
+    assertTheTraces(1, null, null, spanId, "POST", CAPTURE_PARAMETERS);
+  }
+
+  @Test
+  void httpServerMetrics() {
+    String method = "GET";
+    AggregatedHttpRequest request = request(SUCCESS, method);
+    AggregatedHttpResponse response = client.execute(request).aggregate().join();
+
+    assertThat(response.status().code()).isEqualTo(SUCCESS.getStatus());
+    assertThat(response.contentUtf8()).isEqualTo(SUCCESS.getBody());
+
+    AtomicReference<String> instrumentationName = new AtomicReference<>();
+    testing.waitAndAssertTraces(
+        trace -> {
+          instrumentationName.set(trace.getSpan(0).getInstrumentationScopeInfo().getName());
+          trace.anySatisfy(
+              spanData -> assertServerSpan(assertThat(spanData), method, SUCCESS, SUCCESS.status));
+        });
+
+    testing.waitAndAssertMetrics(
+        instrumentationName.get(),
+        "http.server.request.duration",
+        metrics ->
+            metrics.anySatisfy(
+                metric ->
+                    assertThat(metric)
+                        .hasDescription("Duration of HTTP server requests.")
+                        .hasUnit("s")
+                        .hasHistogramSatisfying(
+                            histogram ->
+                                histogram.hasPointsSatisfying(
+                                    point -> point.hasSumGreaterThan(0.0)))));
   }
 
   /**
@@ -351,7 +396,7 @@ public abstract class AbstractHttpServerTest<SERVER> extends AbstractHttpServerU
       HttpRequestBuilder request =
           HttpRequest.builder()
               // Force HTTP/1 via h1c so upgrade requests don't show up as traces
-              .get(endpoint.resolvePath(address).toString().replace("http://", "h1c://"))
+              .get(endpoint.resolvePath(address).toString().replace("http://", getProtocolPrefix()))
               .queryParam(ServerEndpoint.ID_PARAMETER_NAME, index);
 
       testing.runWithSpan(
@@ -373,6 +418,8 @@ public abstract class AbstractHttpServerTest<SERVER> extends AbstractHttpServerU
   @Test
   void httpPipelining() throws InterruptedException {
     assumeTrue(options.testHttpPipelining);
+    // test uses http 1.1
+    assumeFalse(options.useHttp2);
 
     int count = 10;
     CountDownLatch countDownLatch = new CountDownLatch(count);
@@ -435,6 +482,55 @@ public abstract class AbstractHttpServerTest<SERVER> extends AbstractHttpServerU
     }
   }
 
+  @Test
+  void requestWithNonStandardHttpMethod() throws InterruptedException {
+    assumeTrue(options.testNonStandardHttpMethod);
+    // test uses http 1.1
+    assumeFalse(options.useHttp2);
+
+    EventLoopGroup eventLoopGroup = new NioEventLoopGroup();
+    try {
+      Bootstrap bootstrap = buildBootstrap(eventLoopGroup);
+      Channel channel = bootstrap.connect(address.getHost(), port).sync().channel();
+
+      String method = "TEST";
+      DefaultFullHttpRequest request =
+          new DefaultFullHttpRequest(
+              HttpVersion.HTTP_1_1,
+              new io.opentelemetry.testing.internal.io.netty.handler.codec.http.HttpMethod(method),
+              SUCCESS.resolvePath(address).getPath(),
+              Unpooled.EMPTY_BUFFER);
+      request.headers().set(HttpHeaderNames.HOST, address.getHost() + ":" + port);
+      request.headers().set(HttpHeaderNames.USER_AGENT, TEST_USER_AGENT);
+      request.headers().set(HttpHeaderNames.X_FORWARDED_FOR, TEST_CLIENT_IP);
+
+      testing
+          .getOpenTelemetry()
+          .getPropagators()
+          .getTextMapPropagator()
+          .inject(
+              Context.current(),
+              request,
+              (carrier, key, value) -> carrier.headers().set(key, value));
+      channel.writeAndFlush(request);
+
+      // TODO: add stricter assertions; could be difficult with the groovy code still in place
+      // though
+      testing.waitAndAssertTraces(
+          trace ->
+              trace.anySatisfy(
+                  span ->
+                      assertServerSpan(
+                              assertThat(span),
+                              HttpConstants._OTHER,
+                              SUCCESS,
+                              options.responseCodeOnNonStandardHttpMethod)
+                          .hasAttribute(HttpAttributes.HTTP_REQUEST_METHOD_ORIGINAL, method)));
+    } finally {
+      eventLoopGroup.shutdownGracefully().await(10, TimeUnit.SECONDS);
+    }
+  }
+
   private static Bootstrap buildBootstrap(EventLoopGroup eventLoopGroup) {
     Bootstrap bootstrap = new Bootstrap();
     bootstrap
@@ -480,15 +576,11 @@ public abstract class AbstractHttpServerTest<SERVER> extends AbstractHttpServerU
                   span -> assertHandlerSpan(span, "GET", endpoint).hasParent(trace.getSpan(1)));
             }
 
-            int parentIndex = spanAssertions.size() - 2;
-            if (options.hasHandlerAsControllerParentSpan.test(endpoint)) {
-              parentIndex = parentIndex + 1;
-            }
-            int finalParentIndex = parentIndex;
+            int parentIndex = spanAssertions.size() - 1;
             spanAssertions.add(
                 span ->
                     assertIndexedControllerSpan(span, requestId)
-                        .hasParent(trace.getSpan(finalParentIndex)));
+                        .hasParent(trace.getSpan(parentIndex)));
 
             trace.hasSpansSatisfyingExactly(spanAssertions);
           });
@@ -523,8 +615,7 @@ public abstract class AbstractHttpServerTest<SERVER> extends AbstractHttpServerU
       String parentId,
       String spanId,
       String method,
-      ServerEndpoint endpoint,
-      AggregatedHttpResponse response) {
+      ServerEndpoint endpoint) {
     List<Consumer<TraceAssert>> assertions = new ArrayList<>();
     for (int i = 0; i < size; i++) {
       assertions.add(
@@ -532,7 +623,7 @@ public abstract class AbstractHttpServerTest<SERVER> extends AbstractHttpServerU
             List<Consumer<SpanDataAssert>> spanAssertions = new ArrayList<>();
             spanAssertions.add(
                 span -> {
-                  assertServerSpan(span, method, endpoint);
+                  assertServerSpan(span, method, endpoint, endpoint.status);
                   if (traceId != null) {
                     span.hasTraceId(traceId);
                   }
@@ -556,8 +647,7 @@ public abstract class AbstractHttpServerTest<SERVER> extends AbstractHttpServerU
 
             if (endpoint != NOT_FOUND) {
               int parentIndex = 0;
-              if (options.hasHandlerSpan.test(endpoint)
-                  && options.hasHandlerAsControllerParentSpan.test(endpoint)) {
+              if (options.hasHandlerSpan.test(endpoint)) {
                 parentIndex = spanAssertions.size() - 1;
               }
               int finalParentIndex = parentIndex;
@@ -567,15 +657,15 @@ public abstract class AbstractHttpServerTest<SERVER> extends AbstractHttpServerU
                         span, endpoint == EXCEPTION ? options.expectedException : null);
                     span.hasParent(trace.getSpan(finalParentIndex));
                   });
+              if (options.hasRenderSpan.test(endpoint)) {
+                spanAssertions.add(span -> assertRenderSpan(span, method, endpoint));
+              }
             }
 
             if (options.hasResponseSpan.test(endpoint)) {
               int parentIndex = spanAssertions.size() - 1;
               spanAssertions.add(
-                  span -> {
-                    assertResponseSpan(span, method, endpoint);
-                    span.hasParent(trace.getSpan(parentIndex));
-                  });
+                  span -> assertResponseSpan(span, trace.getSpan(parentIndex), method, endpoint));
             }
 
             if (options.hasErrorPageSpans.test(endpoint)) {
@@ -616,10 +706,23 @@ public abstract class AbstractHttpServerTest<SERVER> extends AbstractHttpServerU
         "assertHandlerSpan not implemented in " + getClass().getName());
   }
 
+  @CanIgnoreReturnValue
+  protected SpanDataAssert assertResponseSpan(
+      SpanDataAssert span, SpanData parentSpan, String method, ServerEndpoint endpoint) {
+    span.hasParent(parentSpan);
+    return assertResponseSpan(span, method, endpoint);
+  }
+
   protected SpanDataAssert assertResponseSpan(
       SpanDataAssert span, String method, ServerEndpoint endpoint) {
     throw new UnsupportedOperationException(
         "assertResponseSpan not implemented in " + getClass().getName());
+  }
+
+  protected SpanDataAssert assertRenderSpan(
+      SpanDataAssert span, String method, ServerEndpoint endpoint) {
+    throw new UnsupportedOperationException(
+        "assertRenderSpan not implemented in " + getClass().getName());
   }
 
   protected List<Consumer<SpanDataAssert>> errorPageSpanAssertions(
@@ -630,14 +733,14 @@ public abstract class AbstractHttpServerTest<SERVER> extends AbstractHttpServerU
 
   @CanIgnoreReturnValue
   protected SpanDataAssert assertServerSpan(
-      SpanDataAssert span, String method, ServerEndpoint endpoint) {
+      SpanDataAssert span, String method, ServerEndpoint endpoint, int statusCode) {
 
     Set<AttributeKey<?>> httpAttributes = options.httpAttributes.apply(endpoint);
-    String expectedRoute = options.expectedHttpRoute.apply(endpoint);
-    String name = getString(method, endpoint, expectedRoute);
+    String expectedRoute = options.expectedHttpRoute.apply(endpoint, method);
+    String name = options.expectedServerSpanNameMapper.apply(endpoint, method, expectedRoute);
 
     span.hasName(name).hasKind(SpanKind.SERVER);
-    if (endpoint.status >= 500) {
+    if (statusCode >= 500) {
       span.hasStatus(StatusData.error());
     }
 
@@ -647,116 +750,90 @@ public abstract class AbstractHttpServerTest<SERVER> extends AbstractHttpServerU
 
     span.hasAttributesSatisfying(
         attrs -> {
-          if (httpAttributes.contains(SemanticAttributes.NET_TRANSPORT)) {
+          // we're opting out of these attributes in the new semconv
+          assertThat(attrs)
+              .doesNotContainKey(NetworkAttributes.NETWORK_TRANSPORT)
+              .doesNotContainKey(NetworkAttributes.NETWORK_TYPE)
+              .doesNotContainKey(NetworkAttributes.NETWORK_PROTOCOL_NAME);
+
+          if (attrs.get(NetworkAttributes.NETWORK_PROTOCOL_VERSION) != null) {
             assertThat(attrs)
                 .containsEntry(
-                    SemanticAttributes.NET_TRANSPORT, SemanticAttributes.NetTransportValues.IP_TCP);
+                    NetworkAttributes.NETWORK_PROTOCOL_VERSION, options.useHttp2 ? "2" : "1.1");
           }
 
-          assertThat(attrs).containsEntry(SemanticAttributes.NET_HOST_NAME, "localhost");
+          assertThat(attrs).containsEntry(ServerAttributes.SERVER_ADDRESS, "localhost");
           // TODO: Move to test knob rather than always treating as optional
           // TODO: once httpAttributes test knob is used, verify default port values
-          if (attrs.get(SemanticAttributes.NET_HOST_PORT) != null) {
-            assertThat(attrs).containsEntry(SemanticAttributes.NET_HOST_PORT, port);
+          if (attrs.get(ServerAttributes.SERVER_PORT) != null) {
+            assertThat(attrs).containsEntry(ServerAttributes.SERVER_PORT, port);
           }
-          if (attrs.get(SemanticAttributes.NET_SOCK_PEER_PORT) != null) {
+
+          if (attrs.get(NetworkAttributes.NETWORK_PEER_ADDRESS) != null) {
+            assertThat(attrs)
+                .containsEntry(
+                    NetworkAttributes.NETWORK_PEER_ADDRESS, options.sockPeerAddr.apply(endpoint));
+          }
+          if (attrs.get(NetworkAttributes.NETWORK_PEER_PORT) != null) {
             assertThat(attrs)
                 .hasEntrySatisfying(
-                    SemanticAttributes.NET_SOCK_PEER_PORT,
+                    NetworkAttributes.NETWORK_PEER_PORT,
                     value ->
                         assertThat(value)
                             .isInstanceOf(Long.class)
                             .isNotEqualTo(Long.valueOf(port)));
           }
-          if (attrs.get(SemanticAttributes.NET_SOCK_PEER_ADDR) != null) {
-            assertThat(attrs)
-                .containsEntry(
-                    SemanticAttributes.NET_SOCK_PEER_ADDR, options.sockPeerAddr.apply(endpoint));
-          }
-          if (attrs.get(SemanticAttributes.NET_SOCK_HOST_ADDR) != null) {
-            assertThat(attrs).containsEntry(SemanticAttributes.NET_SOCK_HOST_ADDR, "127.0.0.1");
+
+          assertThat(attrs).containsEntry(ClientAttributes.CLIENT_ADDRESS, TEST_CLIENT_IP);
+          // client.port is opt-in
+          assertThat(attrs).doesNotContainKey(ClientAttributes.CLIENT_PORT);
+
+          assertThat(attrs).containsEntry(HttpAttributes.HTTP_REQUEST_METHOD, method);
+
+          assertThat(attrs).containsEntry(HttpAttributes.HTTP_RESPONSE_STATUS_CODE, statusCode);
+          if (statusCode >= 500) {
+            assertThat(attrs).containsEntry(ErrorAttributes.ERROR_TYPE, String.valueOf(statusCode));
           }
 
-          assertThat(attrs)
-              .hasEntrySatisfying(
-                  SemanticAttributes.HTTP_CLIENT_IP,
-                  entry ->
-                      assertThat(entry)
-                          .satisfiesAnyOf(
-                              value -> assertThat(value).isNull(),
-                              value -> assertThat(value).isEqualTo(TEST_CLIENT_IP)));
-          assertThat(attrs).containsEntry(SemanticAttributes.HTTP_METHOD, method);
-          assertThat(attrs).containsEntry(SemanticAttributes.HTTP_STATUS_CODE, endpoint.status);
+          assertThat(attrs).containsEntry(UserAgentAttributes.USER_AGENT_ORIGINAL, TEST_USER_AGENT);
 
-          if (attrs.get(NetAttributes.NET_PROTOCOL_NAME) != null) {
-            assertThat(attrs).containsEntry(NetAttributes.NET_PROTOCOL_NAME, "http");
-          }
-          if (attrs.get(NetAttributes.NET_PROTOCOL_VERSION) != null) {
-            assertThat(attrs)
-                .hasEntrySatisfying(
-                    NetAttributes.NET_PROTOCOL_VERSION,
-                    entry -> assertThat(entry).isIn("1.1", "2.0"));
-          }
-          assertThat(attrs).containsEntry(SemanticAttributes.USER_AGENT_ORIGINAL, TEST_USER_AGENT);
-
-          assertThat(attrs).containsEntry(SemanticAttributes.HTTP_SCHEME, "http");
+          assertThat(attrs).containsEntry(UrlAttributes.URL_SCHEME, "http");
           if (endpoint != INDEXED_CHILD) {
             assertThat(attrs)
-                .containsEntry(
-                    SemanticAttributes.HTTP_TARGET,
-                    endpoint.resolvePath(address).getPath()
-                        + (endpoint == QUERY_PARAM ? "?" + endpoint.body : ""));
+                .containsEntry(UrlAttributes.URL_PATH, endpoint.resolvePath(address).getPath());
+            if (endpoint.getQuery() != null) {
+              assertThat(attrs).containsEntry(UrlAttributes.URL_QUERY, endpoint.getQuery());
+            }
           }
 
-          if (attrs.get(SemanticAttributes.HTTP_REQUEST_CONTENT_LENGTH) != null) {
-            assertThat(attrs)
-                .hasEntrySatisfying(
-                    SemanticAttributes.HTTP_REQUEST_CONTENT_LENGTH,
-                    entry -> assertThat(entry).isNotNegative());
-          }
-          if (attrs.get(SemanticAttributes.HTTP_RESPONSE_CONTENT_LENGTH) != null) {
-            assertThat(attrs)
-                .hasEntrySatisfying(
-                    SemanticAttributes.HTTP_RESPONSE_CONTENT_LENGTH,
-                    entry -> assertThat(entry).isNotNegative());
-          }
-          if (httpAttributes.contains(SemanticAttributes.HTTP_ROUTE) && expectedRoute != null) {
-            assertThat(attrs).containsEntry(SemanticAttributes.HTTP_ROUTE, expectedRoute);
+          if (httpAttributes.contains(HttpAttributes.HTTP_ROUTE) && expectedRoute != null) {
+            assertThat(attrs).containsEntry(HttpAttributes.HTTP_ROUTE, expectedRoute);
           }
 
           if (endpoint == CAPTURE_HEADERS) {
             assertThat(attrs)
-                .containsEntry("http.request.header.x_test_request", new String[] {"test"});
+                .containsEntry("http.request.header.x-test-request", new String[] {"test"});
             assertThat(attrs)
-                .containsEntry("http.response.header.x_test_response", new String[] {"test"});
+                .containsEntry("http.response.header.x-test-response", new String[] {"test"});
           }
           if (endpoint == CAPTURE_PARAMETERS) {
             assertThat(attrs)
                 .containsEntry(
-                    "servlet.request.parameter.test_parameter", new String[] {"test value õäöü"});
+                    "servlet.request.parameter.test-parameter", new String[] {"test value õäöü"});
           }
         });
 
     return span;
   }
 
-  private String getString(String method, ServerEndpoint endpoint, String expectedRoute) {
-    String name = options.expectedServerSpanNameMapper.apply(endpoint, method, expectedRoute);
-    return name;
-  }
-
   @CanIgnoreReturnValue
   protected SpanDataAssert assertIndexedServerSpan(SpanDataAssert span, int requestId) {
     ServerEndpoint endpoint = INDEXED_CHILD;
     String method = "GET";
-    assertServerSpan(span, method, endpoint);
-
-    span.hasAttributesSatisfying(
-        equalTo(
-            SemanticAttributes.HTTP_TARGET,
-            endpoint.resolvePath(address).getPath() + "?id=" + requestId));
-
-    return span;
+    return assertServerSpan(span, method, endpoint, endpoint.status)
+        .hasAttributesSatisfying(
+            equalTo(UrlAttributes.URL_PATH, endpoint.resolvePath(address).getPath()),
+            equalTo(UrlAttributes.URL_QUERY, "id=" + requestId));
   }
 
   @CanIgnoreReturnValue
@@ -774,9 +851,13 @@ public abstract class AbstractHttpServerTest<SERVER> extends AbstractHttpServerU
         endpoint, method, route);
   }
 
-  public String expectedHttpRoute(ServerEndpoint endpoint) {
+  public String expectedHttpRoute(ServerEndpoint endpoint, String method) {
     // no need to compute route if we're not expecting it
-    if (!options.httpAttributes.apply(endpoint).contains(SemanticAttributes.HTTP_ROUTE)) {
+    if (!options.httpAttributes.apply(endpoint).contains(HttpAttributes.HTTP_ROUTE)) {
+      return null;
+    }
+
+    if (HttpConstants._OTHER.equals(method)) {
       return null;
     }
 

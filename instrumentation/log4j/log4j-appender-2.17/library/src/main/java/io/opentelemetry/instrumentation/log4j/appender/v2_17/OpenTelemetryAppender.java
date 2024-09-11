@@ -8,25 +8,34 @@ package io.opentelemetry.instrumentation.log4j.appender.v2_17;
 import static java.util.Collections.emptyList;
 
 import com.google.errorprone.annotations.CanIgnoreReturnValue;
-import io.opentelemetry.api.GlobalOpenTelemetry;
 import io.opentelemetry.api.OpenTelemetry;
 import io.opentelemetry.api.logs.LogRecordBuilder;
 import io.opentelemetry.instrumentation.log4j.appender.v2_17.internal.ContextDataAccessor;
 import io.opentelemetry.instrumentation.log4j.appender.v2_17.internal.LogEventMapper;
 import java.io.Serializable;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReadWriteLock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 import javax.annotation.Nullable;
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.ThreadContext;
 import org.apache.logging.log4j.core.Appender;
 import org.apache.logging.log4j.core.Core;
 import org.apache.logging.log4j.core.Filter;
 import org.apache.logging.log4j.core.Layout;
 import org.apache.logging.log4j.core.LogEvent;
+import org.apache.logging.log4j.core.LoggerContext;
 import org.apache.logging.log4j.core.appender.AbstractAppender;
+import org.apache.logging.log4j.core.config.Configuration;
 import org.apache.logging.log4j.core.config.Property;
 import org.apache.logging.log4j.core.config.plugins.Plugin;
 import org.apache.logging.log4j.core.config.plugins.PluginBuilderAttribute;
@@ -44,7 +53,35 @@ public class OpenTelemetryAppender extends AbstractAppender {
   static final String PLUGIN_NAME = "OpenTelemetry";
 
   private final LogEventMapper<ReadOnlyStringMap> mapper;
-  @Nullable private OpenTelemetry openTelemetry;
+  private volatile OpenTelemetry openTelemetry;
+
+  private final BlockingQueue<LogEventToReplay> eventsToReplay;
+
+  private final AtomicBoolean replayLimitWarningLogged = new AtomicBoolean();
+
+  private final ReadWriteLock lock = new ReentrantReadWriteLock();
+
+  /**
+   * Installs the {@code openTelemetry} instance on any {@link OpenTelemetryAppender}s identified in
+   * the {@link LoggerContext}.
+   */
+  public static void install(OpenTelemetry openTelemetry) {
+    org.apache.logging.log4j.spi.LoggerContext loggerContextSpi = LogManager.getContext(false);
+    if (!(loggerContextSpi instanceof LoggerContext)) {
+      return;
+    }
+    LoggerContext loggerContext = (LoggerContext) loggerContextSpi;
+    Configuration config = loggerContext.getConfiguration();
+    config
+        .getAppenders()
+        .values()
+        .forEach(
+            appender -> {
+              if (appender instanceof OpenTelemetryAppender) {
+                ((OpenTelemetryAppender) appender).setOpenTelemetry(openTelemetry);
+              }
+            });
+  }
 
   @PluginBuilderFactory
   public static <B extends Builder<B>> B builder() {
@@ -58,6 +95,7 @@ public class OpenTelemetryAppender extends AbstractAppender {
     @PluginBuilderAttribute private boolean captureMapMessageAttributes;
     @PluginBuilderAttribute private boolean captureMarkerAttribute;
     @PluginBuilderAttribute private String captureContextDataAttributes;
+    @PluginBuilderAttribute private int numLogsCapturedBeforeOtelInstall;
 
     @Nullable private OpenTelemetry openTelemetry;
 
@@ -97,6 +135,19 @@ public class OpenTelemetryAppender extends AbstractAppender {
       return asBuilder();
     }
 
+    /**
+     * Log telemetry is emitted after the initialization of the OpenTelemetry Logback appender with
+     * an {@link OpenTelemetry} object. This setting allows you to modify the size of the cache used
+     * to replay the logs that were emitted prior to setting the OpenTelemetry instance into the
+     * Logback appender.
+     */
+    @CanIgnoreReturnValue
+    public B setNumLogsCapturedBeforeOtelInstall(int numLogsCapturedBeforeOtelInstall) {
+      this.numLogsCapturedBeforeOtelInstall = numLogsCapturedBeforeOtelInstall;
+      return asBuilder();
+    }
+
+    /** Configures the {@link OpenTelemetry} used to append logs. */
     @CanIgnoreReturnValue
     public B setOpenTelemetry(OpenTelemetry openTelemetry) {
       this.openTelemetry = openTelemetry;
@@ -105,6 +156,7 @@ public class OpenTelemetryAppender extends AbstractAppender {
 
     @Override
     public OpenTelemetryAppender build() {
+      OpenTelemetry openTelemetry = this.openTelemetry;
       return new OpenTelemetryAppender(
           getName(),
           getLayout(),
@@ -115,6 +167,7 @@ public class OpenTelemetryAppender extends AbstractAppender {
           captureMapMessageAttributes,
           captureMarkerAttribute,
           captureContextDataAttributes,
+          numLogsCapturedBeforeOtelInstall,
           openTelemetry);
     }
   }
@@ -129,6 +182,7 @@ public class OpenTelemetryAppender extends AbstractAppender {
       boolean captureMapMessageAttributes,
       boolean captureMarkerAttribute,
       String captureContextDataAttributes,
+      int numLogsCapturedBeforeOtelInstall,
       OpenTelemetry openTelemetry) {
 
     super(name, filter, layout, ignoreExceptions, properties);
@@ -140,6 +194,11 @@ public class OpenTelemetryAppender extends AbstractAppender {
             captureMarkerAttribute,
             splitAndFilterBlanksAndNulls(captureContextDataAttributes));
     this.openTelemetry = openTelemetry;
+    if (numLogsCapturedBeforeOtelInstall != 0) {
+      this.eventsToReplay = new ArrayBlockingQueue<>(numLogsCapturedBeforeOtelInstall);
+    } else {
+      this.eventsToReplay = new ArrayBlockingQueue<>(1000);
+    }
   }
 
   private static List<String> splitAndFilterBlanksAndNulls(String value) {
@@ -152,27 +211,66 @@ public class OpenTelemetryAppender extends AbstractAppender {
         .collect(Collectors.toList());
   }
 
+  /**
+   * Configures the {@link OpenTelemetry} used to append logs. This MUST be called for the appender
+   * to function. See {@link #install(OpenTelemetry)} for simple installation option.
+   */
   public void setOpenTelemetry(OpenTelemetry openTelemetry) {
-    this.openTelemetry = openTelemetry;
+    List<LogEventToReplay> eventsToReplay = new ArrayList<>();
+    Lock writeLock = lock.writeLock();
+    writeLock.lock();
+    try {
+      // minimize scope of write lock
+      this.openTelemetry = openTelemetry;
+      this.eventsToReplay.drainTo(eventsToReplay);
+    } finally {
+      writeLock.unlock();
+    }
+    // now emit
+    for (LogEventToReplay eventToReplay : eventsToReplay) {
+      emit(openTelemetry, eventToReplay);
+    }
   }
 
-  private OpenTelemetry getOpenTelemetry() {
-    return openTelemetry == null ? GlobalOpenTelemetry.get() : openTelemetry;
-  }
-
+  @SuppressWarnings("SystemOut")
   @Override
   public void append(LogEvent event) {
+    OpenTelemetry openTelemetry = this.openTelemetry;
+    if (openTelemetry != null) {
+      // optimization to avoid locking after the OpenTelemetry instance is set
+      emit(openTelemetry, event);
+      return;
+    }
+
+    Lock readLock = lock.readLock();
+    readLock.lock();
+    try {
+      openTelemetry = this.openTelemetry;
+      if (openTelemetry != null) {
+        emit(openTelemetry, event);
+        return;
+      }
+
+      LogEventToReplay logEventToReplay = new LogEventToReplay(event);
+
+      if (!eventsToReplay.offer(logEventToReplay) && !replayLimitWarningLogged.getAndSet(true)) {
+        String message =
+            "numLogsCapturedBeforeOtelInstall value of the OpenTelemetry appender is too small.";
+        System.err.println(message);
+      }
+    } finally {
+      readLock.unlock();
+    }
+  }
+
+  private void emit(OpenTelemetry openTelemetry, LogEvent event) {
     String instrumentationName = event.getLoggerName();
     if (instrumentationName == null || instrumentationName.isEmpty()) {
       instrumentationName = "ROOT";
     }
 
     LogRecordBuilder builder =
-        getOpenTelemetry()
-            .getLogsBridge()
-            .loggerBuilder(instrumentationName)
-            .build()
-            .logRecordBuilder();
+        openTelemetry.getLogsBridge().loggerBuilder(instrumentationName).build().logRecordBuilder();
     ReadOnlyStringMap contextData = event.getContextData();
     mapper.mapLogEvent(
         builder,
@@ -180,7 +278,9 @@ public class OpenTelemetryAppender extends AbstractAppender {
         event.getLevel(),
         event.getMarker(),
         event.getThrown(),
-        contextData);
+        contextData,
+        event.getThreadName(),
+        event.getThreadId());
 
     Instant timestamp = event.getInstant();
     if (timestamp != null) {

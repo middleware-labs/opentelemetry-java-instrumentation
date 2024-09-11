@@ -5,7 +5,7 @@
 
 package io.opentelemetry.javaagent.instrumentation.servlet;
 
-import io.opentelemetry.instrumentation.api.instrumenter.http.HttpServerAttributesGetter;
+import io.opentelemetry.instrumentation.api.semconv.http.HttpServerAttributesGetter;
 import java.util.List;
 import javax.annotation.Nullable;
 
@@ -80,5 +80,61 @@ public class ServletHttpAttributesGetter<REQUEST, RESPONSE>
       ServletResponseContext<RESPONSE> responseContext,
       String name) {
     return accessor.getResponseHeaderValues(responseContext.response(), name);
+  }
+
+  @Nullable
+  @Override
+  public String getNetworkProtocolName(
+      ServletRequestContext<REQUEST> requestContext,
+      @Nullable ServletResponseContext<RESPONSE> responseContext) {
+    String protocol = accessor.getRequestProtocol(requestContext.request());
+    if (protocol != null && protocol.startsWith("HTTP/")) {
+      return "http";
+    }
+    return null;
+  }
+
+  @Nullable
+  @Override
+  public String getNetworkProtocolVersion(
+      ServletRequestContext<REQUEST> requestContext,
+      @Nullable ServletResponseContext<RESPONSE> responseContext) {
+    String protocol = accessor.getRequestProtocol(requestContext.request());
+    if (protocol != null && protocol.startsWith("HTTP/")) {
+      return protocol.substring("HTTP/".length());
+    }
+    return null;
+  }
+
+  @Override
+  @Nullable
+  public String getNetworkPeerAddress(
+      ServletRequestContext<REQUEST> requestContext,
+      @Nullable ServletResponseContext<RESPONSE> response) {
+    return accessor.getRequestRemoteAddr(requestContext.request());
+  }
+
+  @Override
+  @Nullable
+  public Integer getNetworkPeerPort(
+      ServletRequestContext<REQUEST> requestContext,
+      @Nullable ServletResponseContext<RESPONSE> response) {
+    return accessor.getRequestRemotePort(requestContext.request());
+  }
+
+  @Nullable
+  @Override
+  public String getNetworkLocalAddress(
+      ServletRequestContext<REQUEST> requestContext,
+      @Nullable ServletResponseContext<RESPONSE> response) {
+    return accessor.getRequestLocalAddr(requestContext.request());
+  }
+
+  @Nullable
+  @Override
+  public Integer getNetworkLocalPort(
+      ServletRequestContext<REQUEST> requestContext,
+      @Nullable ServletResponseContext<RESPONSE> response) {
+    return accessor.getRequestLocalPort(requestContext.request());
   }
 }

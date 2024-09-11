@@ -56,7 +56,7 @@ This repository also publishes standalone instrumentation for several libraries 
 that can be used if you prefer that over using the Java agent.
 Please see the standalone library instrumentation column
 on [Supported Libraries](docs/supported-libraries.md#libraries--frameworks).
-if you are looking for documentation on using those.
+If you are looking for documentation on using those.
 
 ## Getting Started
 
@@ -81,7 +81,7 @@ configured to send data to
 at `http://localhost:4317`.
 
 Configuration parameters are passed as Java system properties (`-D` flags) or
-as environment variables. See [the configuration documentation][config]
+as environment variables. See [the configuration documentation][config-agent]
 for the full list of configuration items. For example:
 
 ```
@@ -93,11 +93,14 @@ java -javaagent:path/to/opentelemetry-javaagent.jar \
 
 ## Configuring the Agent
 
-The agent is [highly configurable][config]!  Many aspects of the agent's behavior can be
+The agent is highly configurable! Many aspects of the agent's behavior can be
 configured for your needs, such as exporter choice, exporter config (like where
 data is sent), trace context propagation headers, and much more.
 
-[Click here to see the detailed list of configuration environment variables and system properties][config].
+For a detailed list of agent configuration options, see the [agent configuration docs][config-agent].
+
+For a detailed list of additional SDK configuration environment variables and system properties,
+see the [SDK configuration docs][config-sdk].
 
 *Note: Config parameter names are very likely to change over time, so please check
 back here when trying out a new version!
@@ -149,25 +152,34 @@ Debug logging negatively impacts the performance of your application.
 
 See [CONTRIBUTING.md](CONTRIBUTING.md).
 
+Triagers ([@open-telemetry/java-instrumentation-triagers](https://github.com/orgs/open-telemetry/teams/java-instrumentation-triagers)):
+
+- [Jay DeLuca](https://github.com/jaydeluca)
+- [Jonas Kunz](https://github.com/JonasKunz), Elastic
+- [Steve Rao](https://github.com/steverao), Alibaba
+- [Sylvain Juge](https://github.com/SylvainJuge), Elastic
+
 Approvers ([@open-telemetry/java-instrumentation-approvers](https://github.com/orgs/open-telemetry/teams/java-instrumentation-approvers)):
 
+- [Gregor Zietlinger](https://github.com/zeitlinger), Grafana
 - [Jack Berg](https://github.com/jack-berg), New Relic
 - [Jason Plumb](https://github.com/breedx-splk), Splunk
+- [Jean Bisutti](https://github.com/jeanbisutti), Microsoft
 - [John Watson](https://github.com/jkwatson), Verta.ai
 
 Maintainers ([@open-telemetry/java-instrumentation-maintainers](https://github.com/orgs/open-telemetry/teams/java-instrumentation-maintainers)):
 
 - [Lauri Tulmin](https://github.com/laurit), Splunk
-- [Mateusz Rzeszutek](https://github.com/mateuszrzeszutek), Splunk
 - [Trask Stalnaker](https://github.com/trask), Microsoft
 
 Emeritus maintainers:
 
-- [Nikita Salnikov-Tarnovski](https://github.com/iNikem), Splunk
+- [Mateusz Rzeszutek](https://github.com/mateuszrzeszutek)
+- [Nikita Salnikov-Tarnovski](https://github.com/iNikem)
 - [Tyler Benson](https://github.com/tylerbenson)
 
 Learn more about roles in
-the [community repository](https://github.com/open-telemetry/community/blob/main/community-membership.md).
+the [community repository](https://github.com/open-telemetry/community/blob/main/guides/contributor/membership.md).
 
 Thanks to all the people who already contributed!
 
@@ -175,7 +187,9 @@ Thanks to all the people who already contributed!
   <img src="https://contributors-img.web.app/image?repo=open-telemetry/opentelemetry-java-instrumentation" />
 </a>
 
-[config]: https://opentelemetry.io/docs/instrumentation/java/automatic/agent-config/
+[config-agent]: https://opentelemetry.io/docs/zero-code/java/agent/configuration/
+
+[config-sdk]: https://opentelemetry.io/docs/languages/java/configuration/
 
 [manual]: https://opentelemetry.io/docs/instrumentation/java/manual/
 

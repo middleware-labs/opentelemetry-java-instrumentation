@@ -57,7 +57,7 @@ class TestWebfluxSpringBootApp {
         .setCapturedServerResponseHeaders(
             singletonList(AbstractHttpServerTest.TEST_RESPONSE_HEADER))
         .build()
-        .createWebFilter();
+        .createWebFilterAndRegisterReactorHook();
   }
 
   @Controller
@@ -69,10 +69,16 @@ class TestWebfluxSpringBootApp {
       return Flux.defer(() -> Flux.just(controller(SUCCESS, SUCCESS::getBody)));
     }
 
+    @RequestMapping("/no-mono")
+    @ResponseBody
+    String noMono() {
+      return controller(SUCCESS, SUCCESS::getBody);
+    }
+
     @RequestMapping("/query")
     @ResponseBody
-    String query_param(@RequestParam("some") String param) {
-      return controller(QUERY_PARAM, () -> "some=" + param);
+    Mono<String> query_param(@RequestParam("some") String param) {
+      return Mono.just(controller(QUERY_PARAM, () -> "some=" + param));
     }
 
     @RequestMapping("/redirect")
@@ -102,20 +108,21 @@ class TestWebfluxSpringBootApp {
     }
 
     @RequestMapping("/captureHeaders")
-    ResponseEntity<String> capture_headers(
+    Mono<ResponseEntity<String>> capture_headers(
         @RequestHeader("X-Test-Request") String testRequestHeader) {
-      return controller(
-          CAPTURE_HEADERS,
-          () ->
-              ResponseEntity.ok()
-                  .header("X-Test-Response", testRequestHeader)
-                  .body(CAPTURE_HEADERS.getBody()));
+      return Mono.just(
+          controller(
+              CAPTURE_HEADERS,
+              () ->
+                  ResponseEntity.ok()
+                      .header("X-Test-Response", testRequestHeader)
+                      .body(CAPTURE_HEADERS.getBody())));
     }
 
     @RequestMapping("/path/{id}/param")
     @ResponseBody
-    String path_param(@PathVariable("id") int id) {
-      return controller(PATH_PARAM, () -> String.valueOf(id));
+    Mono<String> path_param(@PathVariable("id") int id) {
+      return Mono.just(controller(PATH_PARAM, () -> String.valueOf(id)));
     }
 
     @RequestMapping("/child")

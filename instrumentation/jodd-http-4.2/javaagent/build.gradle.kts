@@ -15,5 +15,5 @@ dependencies {
   library("org.jodd:jodd-http:4.2.0")
 
   testImplementation(project(":instrumentation:jodd-http-4.2:javaagent"))
-  testImplementation(project(":instrumentation-api-semconv"))
+  testImplementation(project(":instrumentation-api-incubator"))
 }

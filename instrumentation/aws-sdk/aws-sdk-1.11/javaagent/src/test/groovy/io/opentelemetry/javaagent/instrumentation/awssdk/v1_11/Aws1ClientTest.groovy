@@ -6,8 +6,11 @@
 package io.opentelemetry.javaagent.instrumentation.awssdk.v1_11
 
 import com.amazonaws.AmazonWebServiceClient
+import com.amazonaws.ClientConfiguration
 import com.amazonaws.Request
 import com.amazonaws.auth.BasicAWSCredentials
+import com.amazonaws.auth.NoOpSigner
+import com.amazonaws.auth.SignerFactory
 import com.amazonaws.handlers.RequestHandler2
 import com.amazonaws.regions.Regions
 import com.amazonaws.services.s3.AmazonS3Client
@@ -16,7 +19,11 @@ import io.opentelemetry.api.trace.Span
 import io.opentelemetry.api.trace.SpanKind
 import io.opentelemetry.instrumentation.awssdk.v1_11.AbstractAws1ClientTest
 import io.opentelemetry.instrumentation.test.AgentTestTrait
-import io.opentelemetry.semconv.trace.attributes.SemanticAttributes
+import io.opentelemetry.semconv.incubating.RpcIncubatingAttributes
+import io.opentelemetry.semconv.ServerAttributes
+import io.opentelemetry.semconv.ErrorAttributes
+import io.opentelemetry.semconv.HttpAttributes
+import io.opentelemetry.semconv.UrlAttributes
 
 import static io.opentelemetry.api.trace.StatusCode.ERROR
 
@@ -96,18 +103,35 @@ class Aws1ClientTest extends AbstractAws1ClientTest implements AgentTestTrait {
           errorEvent IllegalStateException, "bad handler"
           hasNoParent()
           attributes {
-            "$SemanticAttributes.HTTP_URL" "https://s3.amazonaws.com"
-            "$SemanticAttributes.HTTP_METHOD" "HEAD"
-            "$SemanticAttributes.NET_PEER_NAME" "s3.amazonaws.com"
-            "$SemanticAttributes.RPC_SYSTEM" "aws-api"
-            "$SemanticAttributes.RPC_SERVICE" "Amazon S3"
-            "$SemanticAttributes.RPC_METHOD" "HeadBucket"
+            "$UrlAttributes.URL_FULL" "https://s3.amazonaws.com"
+            "$HttpAttributes.HTTP_REQUEST_METHOD" "HEAD"
+            "$ServerAttributes.SERVER_ADDRESS" "s3.amazonaws.com"
+            "$RpcIncubatingAttributes.RPC_SYSTEM" "aws-api"
+            "$RpcIncubatingAttributes.RPC_SERVICE" "Amazon S3"
+            "$RpcIncubatingAttributes.RPC_METHOD" "HeadBucket"
             "aws.endpoint" "https://s3.amazonaws.com"
             "aws.agent" "java-aws-sdk"
             "aws.bucket.name" "someBucket"
+            "$ErrorAttributes.ERROR_TYPE" IllegalStateException.name
           }
         }
       }
     }
+  }
+
+  def "calling generatePresignedUrl does not leak context"() {
+    setup:
+    SignerFactory.registerSigner("noop", NoOpSigner)
+    def client = AmazonS3ClientBuilder.standard()
+      .withRegion(Regions.US_EAST_1)
+      .withClientConfiguration(new ClientConfiguration().withSignerOverride("noop"))
+      .build()
+
+    when:
+    client.generatePresignedUrl("someBucket", "someKey", new Date())
+
+    then:
+    // expecting no active span after call to generatePresignedUrl
+    !Span.current().getSpanContext().isValid()
   }
 }

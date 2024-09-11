@@ -5,7 +5,8 @@
 
 import io.opentelemetry.instrumentation.test.asserts.TraceAssert
 import io.opentelemetry.sdk.trace.data.SpanData
-import io.opentelemetry.semconv.trace.attributes.SemanticAttributes
+import io.opentelemetry.semconv.incubating.DbIncubatingAttributes
+import io.opentelemetry.semconv.NetworkAttributes
 
 import static io.opentelemetry.api.trace.SpanKind.CLIENT
 
@@ -28,15 +29,15 @@ class CouchbaseSpanUtil {
         childOf((SpanData) parentSpan)
       }
       attributes {
-        "$SemanticAttributes.DB_SYSTEM" "couchbase"
-        "$SemanticAttributes.DB_NAME" bucketName
-        "$SemanticAttributes.DB_STATEMENT" statement
-        "$SemanticAttributes.DB_OPERATION"(operation ?: spanName)
+        "$DbIncubatingAttributes.DB_SYSTEM" "couchbase"
+        "$DbIncubatingAttributes.DB_NAME" bucketName
+        "$DbIncubatingAttributes.DB_STATEMENT" statement
+        "$DbIncubatingAttributes.DB_OPERATION"(operation ?: spanName)
 
         // Because of caching, not all requests hit the server so these attributes may be absent
-        "$SemanticAttributes.NET_SOCK_PEER_ADDR" { it == "127.0.0.1" || it == null }
-        "$SemanticAttributes.NET_SOCK_PEER_NAME" { it == "localhost" || it == "127.0.0.1" || it == null }
-        "$SemanticAttributes.NET_SOCK_PEER_PORT" { it == null || it instanceof Number }
+        "$NetworkAttributes.NETWORK_TYPE" { it == "ipv4" || it == null }
+        "$NetworkAttributes.NETWORK_PEER_ADDRESS" { it == "127.0.0.1" || it == null }
+        "$NetworkAttributes.NETWORK_PEER_PORT" { it instanceof Number || it == null }
 
         // Because of caching, not all requests hit the server so this tag may be absent
         "couchbase.local.address" { it == null || it instanceof String }

@@ -8,7 +8,7 @@ package io.opentelemetry.javaagent.instrumentation.httpurlconnection;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 
-import io.opentelemetry.instrumentation.api.instrumenter.http.HttpClientAttributesGetter;
+import io.opentelemetry.instrumentation.api.semconv.http.HttpClientAttributesGetter;
 import java.net.HttpURLConnection;
 import java.util.List;
 import javax.annotation.Nullable;
@@ -43,5 +43,29 @@ class HttpUrlHttpAttributesGetter
       HttpURLConnection connection, Integer statusCode, String name) {
     String value = connection.getHeaderField(name);
     return value == null ? emptyList() : singletonList(value);
+  }
+
+  @Nullable
+  @Override
+  public String getNetworkProtocolName(HttpURLConnection connection, @Nullable Integer integer) {
+    // HttpURLConnection hardcodes the protocol name&version
+    return "http";
+  }
+
+  @Nullable
+  @Override
+  public String getNetworkProtocolVersion(HttpURLConnection connection, @Nullable Integer integer) {
+    // HttpURLConnection hardcodes the protocol name&version
+    return "1.1";
+  }
+
+  @Override
+  public String getServerAddress(HttpURLConnection connection) {
+    return connection.getURL().getHost();
+  }
+
+  @Override
+  public Integer getServerPort(HttpURLConnection connection) {
+    return connection.getURL().getPort();
   }
 }

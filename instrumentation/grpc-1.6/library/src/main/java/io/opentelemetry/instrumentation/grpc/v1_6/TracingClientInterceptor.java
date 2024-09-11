@@ -15,6 +15,7 @@ import io.grpc.Grpc;
 import io.grpc.Metadata;
 import io.grpc.MethodDescriptor;
 import io.grpc.Status;
+import io.opentelemetry.api.common.AttributeKey;
 import io.opentelemetry.api.common.Attributes;
 import io.opentelemetry.api.trace.Span;
 import io.opentelemetry.context.Context;
@@ -24,6 +25,13 @@ import io.opentelemetry.instrumentation.api.instrumenter.Instrumenter;
 import java.util.concurrent.atomic.AtomicLongFieldUpdater;
 
 final class TracingClientInterceptor implements ClientInterceptor {
+
+  // copied from MessageIncubatingAttributes
+  private static final AttributeKey<Long> MESSAGE_ID = AttributeKey.longKey("message.id");
+  private static final AttributeKey<String> MESSAGE_TYPE = AttributeKey.stringKey("message.type");
+  // copied from MessageIncubatingAttributes.MessageTypeValues
+  private static final String SENT = "SENT";
+  private static final String RECEIVED = "RECEIVED";
 
   @SuppressWarnings("rawtypes")
   private static final AtomicLongFieldUpdater<TracingClientCall> MESSAGE_ID_UPDATER =
@@ -109,11 +117,7 @@ final class TracingClientInterceptor implements ClientInterceptor {
       }
       Span span = Span.fromContext(context);
       Attributes attributes =
-          Attributes.of(
-              GrpcHelper.MESSAGE_TYPE,
-              "SENT",
-              GrpcHelper.MESSAGE_ID,
-              MESSAGE_ID_UPDATER.incrementAndGet(this));
+          Attributes.of(MESSAGE_TYPE, SENT, MESSAGE_ID, MESSAGE_ID_UPDATER.incrementAndGet(this));
       span.addEvent("message", attributes);
     }
 
@@ -140,9 +144,9 @@ final class TracingClientInterceptor implements ClientInterceptor {
         Span span = Span.fromContext(context);
         Attributes attributes =
             Attributes.of(
-                GrpcHelper.MESSAGE_TYPE,
-                "RECEIVED",
-                GrpcHelper.MESSAGE_ID,
+                MESSAGE_TYPE,
+                RECEIVED,
+                MESSAGE_ID,
                 MESSAGE_ID_UPDATER.incrementAndGet(TracingClientCall.this));
         span.addEvent("message", attributes);
         try (Scope ignored = context.makeCurrent()) {

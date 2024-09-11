@@ -5,8 +5,8 @@
 
 package io.opentelemetry.javaagent.instrumentation.opensearch.rest;
 
-import io.opentelemetry.instrumentation.api.instrumenter.db.DbClientAttributesGetter;
-import io.opentelemetry.semconv.trace.attributes.SemanticAttributes;
+import io.opentelemetry.instrumentation.api.incubator.semconv.db.DbClientAttributesGetter;
+import io.opentelemetry.semconv.incubating.DbIncubatingAttributes;
 import javax.annotation.Nullable;
 
 final class OpenSearchRestAttributesGetter
@@ -14,7 +14,7 @@ final class OpenSearchRestAttributesGetter
 
   @Override
   public String getSystem(OpenSearchRestRequest request) {
-    return SemanticAttributes.DbSystemValues.OPENSEARCH;
+    return DbIncubatingAttributes.DbSystemValues.OPENSEARCH;
   }
 
   @Override

@@ -8,7 +8,7 @@ package io.opentelemetry.javaagent.instrumentation.kubernetesclient;
 import static java.util.Collections.emptyList;
 
 import io.kubernetes.client.openapi.ApiResponse;
-import io.opentelemetry.instrumentation.api.instrumenter.http.HttpClientAttributesGetter;
+import io.opentelemetry.instrumentation.api.semconv.http.HttpClientAttributesGetter;
 import java.util.List;
 import javax.annotation.Nullable;
 import okhttp3.Request;
@@ -41,5 +41,15 @@ class KubernetesHttpAttributesGetter
   public List<String> getHttpResponseHeader(
       Request request, ApiResponse<?> apiResponse, String name) {
     return apiResponse.getHeaders().getOrDefault(name, emptyList());
+  }
+
+  @Override
+  public String getServerAddress(Request request) {
+    return request.url().host();
+  }
+
+  @Override
+  public Integer getServerPort(Request request) {
+    return request.url().port();
   }
 }

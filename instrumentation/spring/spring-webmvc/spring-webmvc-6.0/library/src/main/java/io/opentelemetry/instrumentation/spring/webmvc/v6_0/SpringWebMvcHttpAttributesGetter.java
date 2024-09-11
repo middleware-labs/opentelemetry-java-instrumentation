@@ -5,7 +5,7 @@
 
 package io.opentelemetry.instrumentation.spring.webmvc.v6_0;
 
-import io.opentelemetry.instrumentation.api.instrumenter.http.HttpServerAttributesGetter;
+import io.opentelemetry.instrumentation.api.semconv.http.HttpServerAttributesGetter;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.util.ArrayList;
@@ -79,5 +79,53 @@ enum SpringWebMvcHttpAttributesGetter
   @Override
   public String getUrlQuery(HttpServletRequest request) {
     return request.getQueryString();
+  }
+
+  @Nullable
+  @Override
+  public String getNetworkProtocolName(
+      HttpServletRequest request, @Nullable HttpServletResponse response) {
+    String protocol = request.getProtocol();
+    if (protocol != null && protocol.startsWith("HTTP/")) {
+      return "http";
+    }
+    return null;
+  }
+
+  @Nullable
+  @Override
+  public String getNetworkProtocolVersion(
+      HttpServletRequest request, @Nullable HttpServletResponse response) {
+    String protocol = request.getProtocol();
+    if (protocol != null && protocol.startsWith("HTTP/")) {
+      return protocol.substring("HTTP/".length());
+    }
+    return null;
+  }
+
+  @Override
+  @Nullable
+  public String getNetworkPeerAddress(
+      HttpServletRequest request, @Nullable HttpServletResponse response) {
+    return request.getRemoteAddr();
+  }
+
+  @Override
+  public Integer getNetworkPeerPort(
+      HttpServletRequest request, @Nullable HttpServletResponse response) {
+    return request.getRemotePort();
+  }
+
+  @Nullable
+  @Override
+  public String getNetworkLocalAddress(
+      HttpServletRequest request, @Nullable HttpServletResponse response) {
+    return request.getLocalAddr();
+  }
+
+  @Override
+  public Integer getNetworkLocalPort(
+      HttpServletRequest request, @Nullable HttpServletResponse response) {
+    return request.getLocalPort();
   }
 }

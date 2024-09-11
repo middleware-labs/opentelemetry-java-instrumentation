@@ -7,14 +7,11 @@ package io.opentelemetry.javaagent.instrumentation.httpclient;
 
 import io.opentelemetry.api.GlobalOpenTelemetry;
 import io.opentelemetry.instrumentation.api.instrumenter.Instrumenter;
-import io.opentelemetry.instrumentation.api.instrumenter.net.PeerServiceAttributesExtractor;
 import io.opentelemetry.instrumentation.httpclient.internal.HttpHeadersSetter;
-import io.opentelemetry.instrumentation.httpclient.internal.JavaHttpClientInstrumenterFactory;
-import io.opentelemetry.instrumentation.httpclient.internal.JavaHttpClientNetAttributesGetter;
-import io.opentelemetry.javaagent.bootstrap.internal.CommonConfig;
+import io.opentelemetry.instrumentation.httpclient.internal.JavaHttpClientInstrumenterBuilderFactory;
+import io.opentelemetry.javaagent.bootstrap.internal.JavaagentHttpClientInstrumenters;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
-import java.util.Arrays;
 
 public class JavaHttpClientSingletons {
 
@@ -24,16 +21,9 @@ public class JavaHttpClientSingletons {
   static {
     SETTER = new HttpHeadersSetter(GlobalOpenTelemetry.getPropagators());
 
-    JavaHttpClientNetAttributesGetter netAttributesGetter = new JavaHttpClientNetAttributesGetter();
-
     INSTRUMENTER =
-        JavaHttpClientInstrumenterFactory.createInstrumenter(
-            GlobalOpenTelemetry.get(),
-            CommonConfig.get().getClientRequestHeaders(),
-            CommonConfig.get().getClientResponseHeaders(),
-            Arrays.asList(
-                PeerServiceAttributesExtractor.create(
-                    netAttributesGetter, CommonConfig.get().getPeerServiceMapping())));
+        JavaagentHttpClientInstrumenters.create(
+            JavaHttpClientInstrumenterBuilderFactory.create(GlobalOpenTelemetry.get()));
   }
 
   public static Instrumenter<HttpRequest, HttpResponse<?>> instrumenter() {

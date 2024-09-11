@@ -7,7 +7,11 @@ import io.opentelemetry.instrumentation.test.AgentTestTrait
 import io.opentelemetry.instrumentation.test.base.HttpClientTest
 import io.opentelemetry.instrumentation.testing.junit.http.HttpClientResult
 import io.opentelemetry.instrumentation.testing.junit.http.SingleConnection
-import io.opentelemetry.semconv.trace.attributes.SemanticAttributes
+import io.opentelemetry.semconv.ServerAttributes
+import io.opentelemetry.semconv.ErrorAttributes
+import io.opentelemetry.semconv.HttpAttributes
+import io.opentelemetry.semconv.NetworkAttributes
+import io.opentelemetry.semconv.UrlAttributes
 import org.apache.cxf.jaxrs.client.spec.ClientBuilderImpl
 import org.glassfish.jersey.client.ClientConfig
 import org.glassfish.jersey.client.ClientProperties
@@ -30,6 +34,11 @@ import static io.opentelemetry.api.trace.StatusCode.ERROR
 abstract class JaxRsClientTest extends HttpClientTest<Invocation.Builder> implements AgentTestTrait {
 
   boolean testRedirects() {
+    false
+  }
+
+  @Override
+  boolean testNonStandardHttpMethod() {
     false
   }
 
@@ -107,16 +116,14 @@ abstract class JaxRsClientTest extends HttpClientTest<Invocation.Builder> implem
           kind CLIENT
           status ERROR
           attributes {
-            "net.protocol.name" "http"
-            "net.protocol.version" "1.1"
-            "$SemanticAttributes.NET_PEER_NAME" uri.host
-            "$SemanticAttributes.NET_PEER_PORT" uri.port > 0 ? uri.port : { it == null || it == 443 }
-            "$SemanticAttributes.NET_SOCK_PEER_ADDR" { it == "127.0.0.1" || it == null }
-            "$SemanticAttributes.HTTP_URL" "${uri}"
-            "$SemanticAttributes.HTTP_METHOD" method
-            "$SemanticAttributes.HTTP_STATUS_CODE" statusCode
-            "$SemanticAttributes.USER_AGENT_ORIGINAL" { it == null || it instanceof String }
-            "$SemanticAttributes.HTTP_RESPONSE_CONTENT_LENGTH" { it == null || it instanceof Long }
+            "$NetworkAttributes.NETWORK_PROTOCOL_VERSION" "1.1"
+            "$ServerAttributes.SERVER_ADDRESS" uri.host
+            "$ServerAttributes.SERVER_PORT" uri.port > 0 ? uri.port : { it == null || it == 443 }
+            "$NetworkAttributes.NETWORK_PEER_ADDRESS" { it == "127.0.0.1" || it == null }
+            "$UrlAttributes.URL_FULL" "${uri}"
+            "$HttpAttributes.HTTP_REQUEST_METHOD" method
+            "$HttpAttributes.HTTP_RESPONSE_STATUS_CODE" statusCode
+            "$ErrorAttributes.ERROR_TYPE" "$statusCode"
           }
         }
         serverSpan(it, 1, span(0))
@@ -138,11 +145,6 @@ class JerseyClientTest extends JaxRsClientTest {
     config.property(ClientProperties.CONNECT_TIMEOUT, CONNECT_TIMEOUT_MS)
     config.property(ClientProperties.READ_TIMEOUT, READ_TIMEOUT_MS)
     return new JerseyClientBuilder().withConfig(config)
-  }
-
-  @Override
-  String userAgent() {
-    "Jersey"
   }
 
   @Override
@@ -196,11 +198,6 @@ class CxfClientTest extends JaxRsClientTest {
   @Override
   boolean testReadTimeout() {
     return false
-  }
-
-  @Override
-  String userAgent() {
-    "Apache"
   }
 
   @Override

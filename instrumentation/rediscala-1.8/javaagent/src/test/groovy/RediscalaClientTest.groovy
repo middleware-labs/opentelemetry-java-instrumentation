@@ -3,9 +3,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import akka.actor.ActorSystem
 import io.opentelemetry.instrumentation.test.AgentInstrumentationSpecification
-import io.opentelemetry.semconv.trace.attributes.SemanticAttributes
+import io.opentelemetry.semconv.incubating.DbIncubatingAttributes
 import org.testcontainers.containers.GenericContainer
 import redis.ByteStringDeserializerDefault
 import redis.ByteStringSerializerLowPriority
@@ -26,23 +25,45 @@ class RediscalaClientTest extends AgentInstrumentationSpecification {
   int port
 
   @Shared
-  ActorSystem system
+  def system
 
   @Shared
   RedisClient redisClient
 
   def setupSpec() {
     redisServer.start()
+    String host = redisServer.getHost()
     port = redisServer.getMappedPort(6379)
-    system = ActorSystem.create()
-    redisClient = new RedisClient("localhost",
-      port,
-      Option.apply(null),
-      Option.apply(null),
-      "RedisClient",
-      Option.apply(null),
-      system,
-      new RedisDispatcher("rediscala.rediscala-client-worker-dispatcher"))
+    // latest has separate artifacts for akka an pekko, currently latestDepTestLibrary picks the
+    // pekko one
+    try {
+      def clazz = Class.forName("akka.actor.ActorSystem")
+      system = clazz.getMethod("create").invoke(null)
+    } catch (ClassNotFoundException exception) {
+      def clazz = Class.forName("org.apache.pekko.actor.ActorSystem")
+      system = clazz.getMethod("create").invoke(null)
+    }
+    // latest RedisClient constructor takes username as argument
+    if (RedisClient.metaClass.getMetaMethod("username") != null) {
+      redisClient = new RedisClient(host,
+        port,
+        Option.apply(null),
+        Option.apply(null),
+        Option.apply(null),
+        "RedisClient",
+        Option.apply(null),
+        system,
+        new RedisDispatcher("rediscala.rediscala-client-worker-dispatcher"))
+    } else {
+      redisClient = new RedisClient(host,
+        port,
+        Option.apply(null),
+        Option.apply(null),
+        "RedisClient",
+        Option.apply(null),
+        system,
+        new RedisDispatcher("rediscala.rediscala-client-worker-dispatcher"))
+    }
   }
 
   def cleanupSpec() {
@@ -69,8 +90,8 @@ class RediscalaClientTest extends AgentInstrumentationSpecification {
           name "SET"
           kind CLIENT
           attributes {
-            "$SemanticAttributes.DB_SYSTEM" "redis"
-            "$SemanticAttributes.DB_OPERATION" "SET"
+            "$DbIncubatingAttributes.DB_SYSTEM" "redis"
+            "$DbIncubatingAttributes.DB_OPERATION" "SET"
           }
         }
       }
@@ -104,8 +125,8 @@ class RediscalaClientTest extends AgentInstrumentationSpecification {
           kind CLIENT
           childOf span(0)
           attributes {
-            "$SemanticAttributes.DB_SYSTEM" "redis"
-            "$SemanticAttributes.DB_OPERATION" "SET"
+            "$DbIncubatingAttributes.DB_SYSTEM" "redis"
+            "$DbIncubatingAttributes.DB_OPERATION" "SET"
           }
         }
         span(2) {
@@ -113,8 +134,8 @@ class RediscalaClientTest extends AgentInstrumentationSpecification {
           kind CLIENT
           childOf span(0)
           attributes {
-            "$SemanticAttributes.DB_SYSTEM" "redis"
-            "$SemanticAttributes.DB_OPERATION" "GET"
+            "$DbIncubatingAttributes.DB_SYSTEM" "redis"
+            "$DbIncubatingAttributes.DB_OPERATION" "GET"
           }
         }
       }

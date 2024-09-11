@@ -8,15 +8,15 @@ plugins {
 }
 
 dependencies {
-  implementation(platform("io.grpc:grpc-bom:1.56.0"))
+  implementation(platform("io.grpc:grpc-bom:1.66.0"))
   implementation(platform("io.opentelemetry:opentelemetry-bom:1.0.0"))
   implementation(platform("io.opentelemetry:opentelemetry-bom-alpha:1.0.0-alpha"))
-  implementation(platform("org.apache.logging.log4j:log4j-bom:2.20.0"))
+  implementation(platform("org.apache.logging.log4j:log4j-bom:2.24.0"))
 
   implementation("io.grpc:grpc-netty-shaded")
   implementation("io.grpc:grpc-protobuf")
   implementation("io.grpc:grpc-stub")
-  implementation("io.opentelemetry.proto:opentelemetry-proto:0.20.0-alpha")
+  implementation("io.opentelemetry.proto:opentelemetry-proto")
   implementation(project(":instrumentation-annotations"))
   implementation("org.apache.logging.log4j:log4j-core")
 

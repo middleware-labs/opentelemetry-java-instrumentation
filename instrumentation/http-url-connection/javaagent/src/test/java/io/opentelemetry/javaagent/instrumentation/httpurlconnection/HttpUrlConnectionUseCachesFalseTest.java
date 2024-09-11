@@ -45,7 +45,10 @@ class HttpUrlConnectionUseCachesFalseTest extends AbstractHttpClientTest<HttpURL
       Span parentSpan = Span.current();
       InputStream stream = connection.getInputStream();
       assertThat(Span.current()).isEqualTo(parentSpan);
-      readLines(stream);
+      // skip reading body of long-request to make the test a bit faster
+      if (!uri.toString().contains("/long-request")) {
+        readLines(stream);
+      }
       stream.close();
       return connection.getResponseCode();
     } finally {
@@ -60,5 +63,6 @@ class HttpUrlConnectionUseCachesFalseTest extends AbstractHttpClientTest<HttpURL
     // HttpURLConnection can't be reused
     optionsBuilder.disableTestReusedRequest();
     optionsBuilder.disableTestCallback();
+    optionsBuilder.disableTestNonStandardHttpMethod();
   }
 }

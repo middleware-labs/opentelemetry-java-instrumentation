@@ -7,7 +7,9 @@ package io.opentelemetry.instrumentation.restlet.v1_1;
 
 import static io.opentelemetry.instrumentation.restlet.v1_1.RestletHeadersGetter.getHeaders;
 
-import io.opentelemetry.instrumentation.api.instrumenter.http.HttpServerAttributesGetter;
+import com.noelios.restlet.http.HttpCall;
+import com.noelios.restlet.http.HttpRequest;
+import io.opentelemetry.instrumentation.api.semconv.http.HttpServerAttributesGetter;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -78,5 +80,55 @@ enum RestletHttpAttributesGetter implements HttpServerAttributesGetter<Request, 
       stringHeaders.add(header.getValue());
     }
     return stringHeaders;
+  }
+
+  @Nullable
+  @Override
+  public String getNetworkProtocolName(Request request, @Nullable Response response) {
+    String protocol = getProtocolString(request);
+    if (protocol.startsWith("HTTP/")) {
+      return "http";
+    }
+    return null;
+  }
+
+  @Nullable
+  @Override
+  public String getNetworkProtocolVersion(Request request, @Nullable Response response) {
+    String protocol = getProtocolString(request);
+    if (protocol.startsWith("HTTP/")) {
+      return protocol.substring("HTTP/".length());
+    }
+    return null;
+  }
+
+  private static String getProtocolString(Request request) {
+    return (String) request.getAttributes().get("org.restlet.http.version");
+  }
+
+  @Override
+  @Nullable
+  public String getNetworkPeerAddress(Request request, @Nullable Response response) {
+    return request.getClientInfo().getAddress();
+  }
+
+  @Override
+  public Integer getNetworkPeerPort(Request request, @Nullable Response response) {
+    return request.getClientInfo().getPort();
+  }
+
+  @Nullable
+  @Override
+  public String getNetworkLocalAddress(Request request, @Nullable Response response) {
+    HttpCall call = httpCall(request);
+    return call == null ? null : call.getServerAddress();
+  }
+
+  @Nullable
+  private static HttpCall httpCall(Request request) {
+    if (request instanceof HttpRequest) {
+      return ((HttpRequest) request).getHttpCall();
+    }
+    return null;
   }
 }

@@ -6,6 +6,7 @@
 package io.opentelemetry.instrumentation.micrometer.v1_5;
 
 import static io.opentelemetry.instrumentation.micrometer.v1_5.AbstractCounterTest.INSTRUMENTATION_NAME;
+import static io.opentelemetry.instrumentation.test.utils.GcUtils.awaitGc;
 import static io.opentelemetry.sdk.testing.assertj.OpenTelemetryAssertions.assertThat;
 import static io.opentelemetry.sdk.testing.assertj.OpenTelemetryAssertions.attributeEntry;
 
@@ -13,6 +14,10 @@ import io.micrometer.core.instrument.Gauge;
 import io.micrometer.core.instrument.Metrics;
 import io.opentelemetry.instrumentation.testing.junit.InstrumentationExtension;
 import java.lang.ref.WeakReference;
+import java.net.URL;
+import java.net.URLClassLoader;
+import java.time.Duration;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicLong;
 import org.assertj.core.api.AbstractIterableAssert;
 import org.junit.jupiter.api.Test;
@@ -30,6 +35,59 @@ public abstract class AbstractGaugeTest {
             .tags("tag", "value")
             .baseUnit("items")
             .register(Metrics.globalRegistry);
+
+    // then
+    testing()
+        .waitAndAssertMetrics(
+            INSTRUMENTATION_NAME,
+            "testGauge",
+            metrics ->
+                metrics.anySatisfy(
+                    metric ->
+                        assertThat(metric)
+                            .hasDescription("This is a test gauge")
+                            .hasUnit("items")
+                            .hasDoubleGaugeSatisfying(
+                                doubleGauge ->
+                                    doubleGauge.hasPointsSatisfying(
+                                        point ->
+                                            point
+                                                .hasValue(42)
+                                                .hasAttributes(attributeEntry("tag", "value"))))));
+
+    // when
+    Metrics.globalRegistry.remove(gauge);
+    testing().clearData();
+
+    // then
+    testing()
+        .waitAndAssertMetrics(INSTRUMENTATION_NAME, "testGauge", AbstractIterableAssert::isEmpty);
+  }
+
+  @Test
+  void testGaugeDependingOnThreadContextClassLoader() {
+    // given
+    ClassLoader dummy = new URLClassLoader(new URL[0]);
+    ClassLoader prior = Thread.currentThread().getContextClassLoader();
+    Gauge gauge;
+    try {
+      Thread.currentThread().setContextClassLoader(dummy);
+      gauge =
+          Gauge.builder(
+                  "testGauge",
+                  () -> {
+                    // will throw an exception before value is reported if assertion fails
+                    // then we assert below that value was reported
+                    assertThat(Thread.currentThread().getContextClassLoader()).isEqualTo(dummy);
+                    return 42;
+                  })
+              .description("This is a test gauge")
+              .tags("tag", "value")
+              .baseUnit("items")
+              .register(Metrics.globalRegistry);
+    } finally {
+      Thread.currentThread().setContextClassLoader(prior);
+    }
 
     // then
     testing()
@@ -98,7 +156,7 @@ public abstract class AbstractGaugeTest {
   }
 
   @Test
-  void testWeakRefGauge() throws InterruptedException {
+  void testWeakRefGauge() throws InterruptedException, TimeoutException {
     // given
     AtomicLong num = new AtomicLong(42);
     Gauge.builder("testWeakRefGauge", num, AtomicLong::get)
@@ -120,22 +178,12 @@ public abstract class AbstractGaugeTest {
     // when
     WeakReference<AtomicLong> numWeakRef = new WeakReference<>(num);
     num = null;
-    awaitGc(numWeakRef);
+    awaitGc(numWeakRef, Duration.ofSeconds(10));
     testing().clearData();
 
     // then
     testing()
         .waitAndAssertMetrics(
             INSTRUMENTATION_NAME, "testWeakRefGauge", AbstractIterableAssert::isEmpty);
-  }
-
-  private static void awaitGc(WeakReference<?> ref) throws InterruptedException {
-    while (ref.get() != null) {
-      if (Thread.interrupted()) {
-        throw new InterruptedException();
-      }
-      System.gc();
-      System.runFinalization();
-    }
   }
 }

@@ -8,6 +8,7 @@ package com.example.javaagent.smoketest;
 import io.opentelemetry.api.trace.TraceId;
 import io.opentelemetry.proto.collector.trace.v1.ExportTraceServiceRequest;
 import java.io.IOException;
+import java.time.Duration;
 import java.util.Collection;
 import java.util.jar.Attributes;
 import java.util.jar.JarFile;
@@ -75,7 +76,7 @@ class SpringBootIntegrationTest extends IntegrationTest {
     Assertions.assertEquals(1, countSpansByName(traces, "WebController.withSpan"));
     Assertions.assertEquals(2, countSpansByAttributeValue(traces, "custom", "demo"));
     Assertions.assertNotEquals(
-        0, countResourcesByValue(traces, "telemetry.auto.version", currentAgentVersion));
+        0, countResourcesByValue(traces, "telemetry.distro.version", currentAgentVersion));
     Assertions.assertNotEquals(0, countResourcesByValue(traces, "custom.resource", "demo"));
   }
 }

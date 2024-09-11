@@ -8,7 +8,14 @@ import io.opentelemetry.instrumentation.test.asserts.TraceAssert
 import io.opentelemetry.instrumentation.test.base.HttpServerTest
 import io.opentelemetry.instrumentation.testing.junit.http.ServerEndpoint
 import io.opentelemetry.sdk.trace.data.SpanData
-import io.opentelemetry.semconv.trace.attributes.SemanticAttributes
+import io.opentelemetry.semconv.incubating.CodeIncubatingAttributes
+import io.opentelemetry.semconv.ServerAttributes
+import io.opentelemetry.semconv.ClientAttributes
+import io.opentelemetry.semconv.UserAgentAttributes
+import io.opentelemetry.semconv.ErrorAttributes
+import io.opentelemetry.semconv.HttpAttributes
+import io.opentelemetry.semconv.NetworkAttributes
+import io.opentelemetry.semconv.UrlAttributes
 import spock.lang.Unroll
 
 import java.util.concurrent.TimeUnit
@@ -128,7 +135,7 @@ abstract class AbstractJaxRsHttpServerTest<S> extends HttpServerTest<S> implemen
     }
 
     when: "barrier is released and resource class sends response"
-    awaitBarrier(1, SECONDS)
+    awaitBarrier(10, SECONDS)
     def response = futureResponse.join()
 
     then:
@@ -171,7 +178,7 @@ abstract class AbstractJaxRsHttpServerTest<S> extends HttpServerTest<S> implemen
     }
 
     when: "barrier is released and resource class sends response"
-    awaitBarrier(1, SECONDS)
+    awaitBarrier(10, SECONDS)
     def response = futureResponse.join()
 
     then:
@@ -229,7 +236,6 @@ abstract class AbstractJaxRsHttpServerTest<S> extends HttpServerTest<S> implemen
                   String traceID = null,
                   String parentID = null,
                   String method = "GET",
-                  Long responseContentLength = null,
                   ServerEndpoint endpoint = SUCCESS,
                   String spanID = null) {
     serverSpan(trace, index, traceID, parentID, spanID, method,
@@ -279,25 +285,26 @@ abstract class AbstractJaxRsHttpServerTest<S> extends HttpServerTest<S> implemen
         spanId spanID
       }
       attributes {
-        "net.protocol.name" "http"
-        "net.protocol.version" "1.1"
-        "$SemanticAttributes.NET_HOST_NAME" fullUrl.host
-        "$SemanticAttributes.NET_HOST_PORT" fullUrl.port
-        "$SemanticAttributes.NET_SOCK_PEER_ADDR" "127.0.0.1"
-        "$SemanticAttributes.NET_SOCK_PEER_PORT" Long
-        "$SemanticAttributes.NET_SOCK_HOST_ADDR" "127.0.0.1"
-        "$SemanticAttributes.HTTP_SCHEME" fullUrl.getScheme()
-        "$SemanticAttributes.HTTP_TARGET" fullUrl.getPath() + (fullUrl.getQuery() != null ? "?" + fullUrl.getQuery() : "")
-        "$SemanticAttributes.HTTP_METHOD" method
-        "$SemanticAttributes.HTTP_STATUS_CODE" statusCode
-        "$SemanticAttributes.USER_AGENT_ORIGINAL" TEST_USER_AGENT
-        "$SemanticAttributes.HTTP_CLIENT_IP" TEST_CLIENT_IP
+        "$NetworkAttributes.NETWORK_PROTOCOL_VERSION" "1.1"
+        "$ServerAttributes.SERVER_ADDRESS" fullUrl.host
+        "$ServerAttributes.SERVER_PORT" fullUrl.port
+        "$NetworkAttributes.NETWORK_PEER_ADDRESS" "127.0.0.1"
+        "$NetworkAttributes.NETWORK_PEER_PORT" Long
+        "$UrlAttributes.URL_SCHEME" fullUrl.getScheme()
+        "$UrlAttributes.URL_PATH" fullUrl.getPath()
+        "$UrlAttributes.URL_QUERY" fullUrl.getQuery()
+        "$HttpAttributes.HTTP_REQUEST_METHOD" method
+        "$HttpAttributes.HTTP_RESPONSE_STATUS_CODE" statusCode
+        "$UserAgentAttributes.USER_AGENT_ORIGINAL" TEST_USER_AGENT
+        "$ClientAttributes.CLIENT_ADDRESS" TEST_CLIENT_IP
         // Optional
-        "$SemanticAttributes.HTTP_RESPONSE_CONTENT_LENGTH" { it == null || it instanceof Long }
-        "$SemanticAttributes.HTTP_ROUTE" path
+        "$HttpAttributes.HTTP_ROUTE" path
         if (fullUrl.getPath().endsWith(ServerEndpoint.CAPTURE_HEADERS.getPath())) {
-          "http.request.header.x_test_request" { it == ["test"] }
-          "http.response.header.x_test_response" { it == ["test"] }
+          "http.request.header.x-test-request" { it == ["test"] }
+          "http.response.header.x-test-response" { it == ["test"] }
+        }
+        if (statusCode >= 500) {
+          "$ErrorAttributes.ERROR_TYPE" "$statusCode"
         }
       }
     }
@@ -332,8 +339,8 @@ abstract class AbstractJaxRsHttpServerTest<S> extends HttpServerTest<S> implemen
       }
       childOf((SpanData) parent)
       attributes {
-        "$SemanticAttributes.CODE_NAMESPACE" "test.JaxRsTestResource"
-        "$SemanticAttributes.CODE_FUNCTION" methodName
+        "$CodeIncubatingAttributes.CODE_NAMESPACE" "test.JaxRsTestResource"
+        "$CodeIncubatingAttributes.CODE_FUNCTION" methodName
         if (isCancelled) {
           "jaxrs.canceled" true
         }
