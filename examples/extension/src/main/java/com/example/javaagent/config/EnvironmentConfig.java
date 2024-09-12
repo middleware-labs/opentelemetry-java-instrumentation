@@ -5,6 +5,8 @@
 
 package com.example.javaagent.config;
 
+import java.util.Arrays;
+
 /** Environmental configurations. */
 public class EnvironmentConfig {
 
@@ -22,6 +24,10 @@ public class EnvironmentConfig {
 
   public static final String MW_AUTH_URL =
       System.getenv().getOrDefault("MW_AUTH_URL", "https://app.middleware.io/api/v1/auth");
+
+  public static final boolean MW_APM_COLLECT_PROFILING =
+      Arrays.asList("true", "1", "t", "y", "yes")
+          .contains(System.getenv().getOrDefault("MW_APM_COLLECT_PROFILING", "True").toLowerCase());
 
   public static final String MW_API_KEY = System.getenv().getOrDefault("MW_API_KEY", null);
 }
