@@ -1,0 +1,31 @@
+name: Build JAR
+
+on:
+  workflow_dispatch:  
+  push:
+    branches:
+      - 'build-test'  
+
+jobs:
+  build_jar:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Set up JDK
+        uses: actions/setup-java@v2
+        with:
+          java-version: '17'
+          distribution: 'adopt'
+
+      - name: Build JAR
+        run: |
+          cd examples/extension
+          ./gradlew build
+
+      - name: Upload JAR as artifact
+        uses: actions/upload-artifact@v2
+        with:
+          name: middleware-javaagent
+          path: examples/extension/build/libs/middleware-javaagent.jar
