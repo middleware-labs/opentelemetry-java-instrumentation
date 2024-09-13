@@ -5,13 +5,20 @@
 
 package io.opentelemetry.instrumentation.jetty.httpclient.v9_2.internal;
 
-import io.opentelemetry.instrumentation.api.instrumenter.http.HttpClientAttributesGetter;
+import io.opentelemetry.instrumentation.api.internal.HttpProtocolUtil;
+import io.opentelemetry.instrumentation.api.semconv.http.HttpClientAttributesGetter;
 import java.util.List;
 import javax.annotation.Nullable;
 import org.eclipse.jetty.client.api.Request;
 import org.eclipse.jetty.client.api.Response;
+import org.eclipse.jetty.http.HttpVersion;
 
-enum JettyClientHttpAttributesGetter implements HttpClientAttributesGetter<Request, Response> {
+/**
+ * This class is internal and is hence not for public use. Its APIs are unstable and can change at
+ * any time.
+ */
+public enum JettyClientHttpAttributesGetter
+    implements HttpClientAttributesGetter<Request, Response> {
   INSTANCE;
 
   @Override
@@ -40,5 +47,38 @@ enum JettyClientHttpAttributesGetter implements HttpClientAttributesGetter<Reque
   @Override
   public List<String> getHttpResponseHeader(Request request, Response response, String name) {
     return response.getHeaders().getValuesList(name);
+  }
+
+  @Nullable
+  @Override
+  public String getNetworkProtocolName(Request request, @Nullable Response response) {
+    return "http";
+  }
+
+  @Nullable
+  @Override
+  public String getNetworkProtocolVersion(Request request, @Nullable Response response) {
+    HttpVersion httpVersion = null;
+    if (response != null) {
+      httpVersion = response.getVersion();
+    }
+    if (httpVersion == null) {
+      httpVersion = request.getVersion();
+    }
+    if (httpVersion == null) {
+      return null;
+    }
+    return HttpProtocolUtil.getVersion(httpVersion.toString());
+  }
+
+  @Override
+  @Nullable
+  public String getServerAddress(Request request) {
+    return request.getHost();
+  }
+
+  @Override
+  public Integer getServerPort(Request request) {
+    return request.getPort();
   }
 }

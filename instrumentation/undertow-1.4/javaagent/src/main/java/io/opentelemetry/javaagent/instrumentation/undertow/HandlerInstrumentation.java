@@ -48,12 +48,12 @@ public class HandlerInstrumentation implements TypeInstrumentation {
 
     @Advice.OnMethodEnter(suppress = Throwable.class)
     public static void onEnter(
-        @Advice.Argument(value = 0, readOnly = false) HttpServerExchange exchange,
+        @Advice.Argument(0) HttpServerExchange exchange,
         @Advice.Local("otelContext") Context context,
         @Advice.Local("otelScope") Scope scope) {
       Context attachedContext = helper().getServerContext(exchange);
       if (attachedContext != null) {
-        if (!Java8BytecodeBridge.currentContext().equals(attachedContext)) {
+        if (!helper().sameTrace(Java8BytecodeBridge.currentContext(), attachedContext)) {
           // request processing is dispatched to another thread
           scope = attachedContext.makeCurrent();
           context = attachedContext;

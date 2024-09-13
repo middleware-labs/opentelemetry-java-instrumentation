@@ -7,9 +7,9 @@ package io.opentelemetry.javaagent.instrumentation.apachedubbo.v2_7;
 
 import io.opentelemetry.api.GlobalOpenTelemetry;
 import io.opentelemetry.instrumentation.apachedubbo.v2_7.DubboTelemetry;
-import io.opentelemetry.instrumentation.apachedubbo.v2_7.internal.DubboNetClientAttributesGetter;
-import io.opentelemetry.instrumentation.api.instrumenter.net.PeerServiceAttributesExtractor;
-import io.opentelemetry.javaagent.bootstrap.internal.CommonConfig;
+import io.opentelemetry.instrumentation.apachedubbo.v2_7.internal.DubboClientNetworkAttributesGetter;
+import io.opentelemetry.instrumentation.api.incubator.semconv.net.PeerServiceAttributesExtractor;
+import io.opentelemetry.javaagent.bootstrap.internal.AgentCommonConfig;
 import org.apache.dubbo.common.extension.Activate;
 import org.apache.dubbo.rpc.Filter;
 import org.apache.dubbo.rpc.Invocation;
@@ -26,8 +26,8 @@ public class OpenTelemetryFilter implements Filter {
         DubboTelemetry.builder(GlobalOpenTelemetry.get())
             .addAttributesExtractor(
                 PeerServiceAttributesExtractor.create(
-                    new DubboNetClientAttributesGetter(),
-                    CommonConfig.get().getPeerServiceMapping()))
+                    new DubboClientNetworkAttributesGetter(),
+                    AgentCommonConfig.get().getPeerServiceResolver()))
             .build()
             .newFilter();
   }

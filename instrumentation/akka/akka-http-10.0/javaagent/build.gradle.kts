@@ -42,14 +42,36 @@ dependencies {
   latestDepTestLibrary("com.typesafe.akka:akka-stream_2.13:+")
 }
 
-tasks.withType<Test>().configureEach {
-  // required on jdk17
-  jvmArgs("--add-exports=java.base/sun.security.util=ALL-UNNAMED")
-  jvmArgs("-XX:+IgnoreUnrecognizedVMOptions")
+testing {
+  suites {
+    val javaRouteTest by registering(JvmTestSuite::class) {
+      dependencies {
+        if (findProperty("testLatestDeps") as Boolean) {
+          implementation("com.typesafe.akka:akka-http_2.13:+")
+          implementation("com.typesafe.akka:akka-stream_2.13:+")
+        } else {
+          implementation("com.typesafe.akka:akka-http_2.12:10.2.0")
+          implementation("com.typesafe.akka:akka-stream_2.12:2.6.21")
+        }
+      }
+    }
+  }
+}
 
-  jvmArgs("-Dio.opentelemetry.javaagent.shaded.io.opentelemetry.context.enableStrictContext=false")
+tasks {
+  withType<Test>().configureEach {
+    // required on jdk17
+    jvmArgs("--add-exports=java.base/sun.security.util=ALL-UNNAMED")
+    jvmArgs("-XX:+IgnoreUnrecognizedVMOptions")
 
-  systemProperty("testLatestDeps", findProperty("testLatestDeps") as Boolean)
+    jvmArgs("-Dio.opentelemetry.javaagent.shaded.io.opentelemetry.context.enableStrictContext=false")
+
+    systemProperty("testLatestDeps", findProperty("testLatestDeps") as Boolean)
+  }
+
+  check {
+    dependsOn(testing.suites)
+  }
 }
 
 if (findProperty("testLatestDeps") as Boolean) {

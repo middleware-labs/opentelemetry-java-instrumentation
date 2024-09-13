@@ -12,14 +12,25 @@ muzzle {
 }
 
 dependencies {
-  library("io.vertx:vertx-sql-client:4.1.0")
-  compileOnly("io.vertx:vertx-codegen:4.1.0")
+  library("io.vertx:vertx-sql-client:4.0.0")
+  compileOnly("io.vertx:vertx-codegen:4.0.0")
 
-  testLibrary("io.vertx:vertx-pg-client:4.1.0")
-  testLibrary("io.vertx:vertx-codegen:4.1.0")
-  testLibrary("io.vertx:vertx-opentelemetry:4.1.0")
+  testInstrumentation(project(":instrumentation:netty:netty-4.1:javaagent"))
+
+  testLibrary("io.vertx:vertx-pg-client:4.0.0")
+  testLibrary("io.vertx:vertx-codegen:4.0.0")
 }
 
-tasks.withType<Test>().configureEach {
-  usesService(gradle.sharedServices.registrations["testcontainersBuildService"].service)
+tasks {
+  withType<Test>().configureEach {
+    usesService(gradle.sharedServices.registrations["testcontainersBuildService"].service)
+  }
+}
+
+val latestDepTest = findProperty("testLatestDeps") as Boolean
+if (!latestDepTest) {
+  // https://bugs.openjdk.org/browse/JDK-8320431
+  otelJava {
+    maxJavaVersionForTests.set(JavaVersion.VERSION_21)
+  }
 }

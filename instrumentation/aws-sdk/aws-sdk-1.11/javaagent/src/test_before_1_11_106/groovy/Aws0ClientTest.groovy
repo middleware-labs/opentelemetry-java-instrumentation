@@ -11,6 +11,8 @@ import com.amazonaws.auth.AWSCredentialsProviderChain
 import com.amazonaws.auth.BasicAWSCredentials
 import com.amazonaws.auth.EnvironmentVariableCredentialsProvider
 import com.amazonaws.auth.InstanceProfileCredentialsProvider
+import com.amazonaws.auth.NoOpSigner
+import com.amazonaws.auth.SignerFactory
 import com.amazonaws.auth.SystemPropertiesCredentialsProvider
 import com.amazonaws.auth.profile.ProfileCredentialsProvider
 import com.amazonaws.handlers.RequestHandler2
@@ -22,7 +24,12 @@ import com.amazonaws.services.s3.AmazonS3Client
 import com.amazonaws.services.s3.S3ClientOptions
 import io.opentelemetry.api.trace.Span
 import io.opentelemetry.instrumentation.test.AgentInstrumentationSpecification
-import io.opentelemetry.semconv.trace.attributes.SemanticAttributes
+import io.opentelemetry.semconv.incubating.RpcIncubatingAttributes
+import io.opentelemetry.semconv.ServerAttributes
+import io.opentelemetry.semconv.ErrorAttributes
+import io.opentelemetry.semconv.HttpAttributes
+import io.opentelemetry.semconv.NetworkAttributes
+import io.opentelemetry.semconv.UrlAttributes
 import io.opentelemetry.testing.internal.armeria.common.HttpResponse
 import io.opentelemetry.testing.internal.armeria.common.HttpStatus
 import io.opentelemetry.testing.internal.armeria.common.MediaType
@@ -104,17 +111,15 @@ class Aws0ClientTest extends AgentInstrumentationSpecification {
           kind CLIENT
           hasNoParent()
           attributes {
-            "$SemanticAttributes.HTTP_URL" "${server.httpUri()}"
-            "$SemanticAttributes.HTTP_METHOD" "$method"
-            "$SemanticAttributes.HTTP_STATUS_CODE" 200
-            "$SemanticAttributes.HTTP_RESPONSE_CONTENT_LENGTH" Long
-            "net.protocol.name" "http"
-            "net.protocol.version" "1.1"
-            "$SemanticAttributes.NET_PEER_PORT" server.httpPort()
-            "$SemanticAttributes.NET_PEER_NAME" "127.0.0.1"
-            "$SemanticAttributes.RPC_SYSTEM" "aws-api"
-            "$SemanticAttributes.RPC_SERVICE" { it.contains(service) }
-            "$SemanticAttributes.RPC_METHOD" "${operation}"
+            "$UrlAttributes.URL_FULL" "${server.httpUri()}"
+            "$HttpAttributes.HTTP_REQUEST_METHOD" "$method"
+            "$HttpAttributes.HTTP_RESPONSE_STATUS_CODE" 200
+            "$NetworkAttributes.NETWORK_PROTOCOL_VERSION" "1.1"
+            "$ServerAttributes.SERVER_PORT" server.httpPort()
+            "$ServerAttributes.SERVER_ADDRESS" "127.0.0.1"
+            "$RpcIncubatingAttributes.RPC_SYSTEM" "aws-api"
+            "$RpcIncubatingAttributes.RPC_SERVICE" { it.contains(service) }
+            "$RpcIncubatingAttributes.RPC_METHOD" "${operation}"
             "aws.endpoint" "${server.httpUri()}"
             "aws.agent" "java-aws-sdk"
             for (def addedTag : additionalAttributes) {
@@ -168,18 +173,19 @@ class Aws0ClientTest extends AgentInstrumentationSpecification {
           errorEvent AmazonClientException, ~/Unable to execute HTTP request/
           hasNoParent()
           attributes {
-            "$SemanticAttributes.HTTP_URL" "http://localhost:${UNUSABLE_PORT}"
-            "$SemanticAttributes.HTTP_METHOD" "$method"
-            "$SemanticAttributes.NET_PEER_PORT" 61
-            "$SemanticAttributes.NET_PEER_NAME" "localhost"
-            "$SemanticAttributes.RPC_SYSTEM" "aws-api"
-            "$SemanticAttributes.RPC_SERVICE" { it.contains(service) }
-            "$SemanticAttributes.RPC_METHOD" "${operation}"
+            "$UrlAttributes.URL_FULL" "http://localhost:${UNUSABLE_PORT}"
+            "$HttpAttributes.HTTP_REQUEST_METHOD" "$method"
+            "$ServerAttributes.SERVER_PORT" 61
+            "$ServerAttributes.SERVER_ADDRESS" "localhost"
+            "$RpcIncubatingAttributes.RPC_SYSTEM" "aws-api"
+            "$RpcIncubatingAttributes.RPC_SERVICE" { it.contains(service) }
+            "$RpcIncubatingAttributes.RPC_METHOD" "${operation}"
             "aws.endpoint" "http://localhost:${UNUSABLE_PORT}"
             "aws.agent" "java-aws-sdk"
             for (def addedTag : additionalAttributes) {
               "$addedTag.key" "$addedTag.value"
             }
+            "$ErrorAttributes.ERROR_TYPE" AmazonClientException.name
           }
         }
       }
@@ -215,15 +221,16 @@ class Aws0ClientTest extends AgentInstrumentationSpecification {
           errorEvent IllegalStateException, "bad handler"
           hasNoParent()
           attributes {
-            "$SemanticAttributes.HTTP_URL" "https://s3.amazonaws.com"
-            "$SemanticAttributes.HTTP_METHOD" "GET"
-            "$SemanticAttributes.NET_PEER_NAME" "s3.amazonaws.com"
-            "$SemanticAttributes.RPC_SYSTEM" "aws-api"
-            "$SemanticAttributes.RPC_SERVICE" "Amazon S3"
-            "$SemanticAttributes.RPC_METHOD" "GetObject"
+            "$UrlAttributes.URL_FULL" "https://s3.amazonaws.com"
+            "$HttpAttributes.HTTP_REQUEST_METHOD" "GET"
+            "$ServerAttributes.SERVER_ADDRESS" "s3.amazonaws.com"
+            "$RpcIncubatingAttributes.RPC_SYSTEM" "aws-api"
+            "$RpcIncubatingAttributes.RPC_SERVICE" "Amazon S3"
+            "$RpcIncubatingAttributes.RPC_METHOD" "GetObject"
             "aws.endpoint" "https://s3.amazonaws.com"
             "aws.agent" "java-aws-sdk"
             "aws.bucket.name" "someBucket"
+            "$ErrorAttributes.ERROR_TYPE" IllegalStateException.name
           }
         }
       }
@@ -257,19 +264,34 @@ class Aws0ClientTest extends AgentInstrumentationSpecification {
           errorEvent AmazonClientException, ~/Unable to execute HTTP request/
           hasNoParent()
           attributes {
-            "$SemanticAttributes.HTTP_URL" "${server.httpUri()}"
-            "$SemanticAttributes.HTTP_METHOD" "GET"
-            "$SemanticAttributes.NET_PEER_PORT" server.httpPort()
-            "$SemanticAttributes.NET_PEER_NAME" "127.0.0.1"
-            "$SemanticAttributes.RPC_SYSTEM" "aws-api"
-            "$SemanticAttributes.RPC_SERVICE" "Amazon S3"
-            "$SemanticAttributes.RPC_METHOD" "GetObject"
+            "$UrlAttributes.URL_FULL" "${server.httpUri()}"
+            "$HttpAttributes.HTTP_REQUEST_METHOD" "GET"
+            "$ServerAttributes.SERVER_PORT" server.httpPort()
+            "$ServerAttributes.SERVER_ADDRESS" "127.0.0.1"
+            "$RpcIncubatingAttributes.RPC_SYSTEM" "aws-api"
+            "$RpcIncubatingAttributes.RPC_SERVICE" "Amazon S3"
+            "$RpcIncubatingAttributes.RPC_METHOD" "GetObject"
             "aws.endpoint" "${server.httpUri()}"
             "aws.agent" "java-aws-sdk"
             "aws.bucket.name" "someBucket"
+            "$ErrorAttributes.ERROR_TYPE" AmazonClientException.name
           }
         }
       }
     }
+  }
+
+  def "calling generatePresignedUrl does not leak context"() {
+    setup:
+    SignerFactory.registerSigner("noop", NoOpSigner)
+    def client = new AmazonS3Client(new ClientConfiguration().withSignerOverride("noop"))
+      .withEndpoint("${server.httpUri()}")
+
+    when:
+    client.generatePresignedUrl("someBucket", "someKey", new Date())
+
+    then:
+    // expecting no active span after call to generatePresignedUrl
+    !Span.current().getSpanContext().isValid()
   }
 }

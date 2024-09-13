@@ -5,7 +5,7 @@
 
 package io.opentelemetry.instrumentation.ratpack.v1_7;
 
-import io.opentelemetry.instrumentation.api.instrumenter.http.HttpClientAttributesGetter;
+import io.opentelemetry.instrumentation.api.semconv.http.HttpClientAttributesGetter;
 import java.util.List;
 import javax.annotation.Nullable;
 import ratpack.http.client.HttpResponse;
@@ -42,5 +42,16 @@ enum RatpackHttpClientAttributesGetter
   public List<String> getHttpResponseHeader(
       RequestSpec requestSpec, HttpResponse httpResponse, String name) {
     return httpResponse.getHeaders().getAll(name);
+  }
+
+  @Override
+  @Nullable
+  public String getServerAddress(RequestSpec request) {
+    return request.getUri().getHost();
+  }
+
+  @Override
+  public Integer getServerPort(RequestSpec request) {
+    return request.getUri().getPort();
   }
 }

@@ -7,29 +7,34 @@ package io.opentelemetry.cassandra.v4.common;
 
 import static io.opentelemetry.sdk.testing.assertj.OpenTelemetryAssertions.equalTo;
 import static io.opentelemetry.sdk.testing.assertj.OpenTelemetryAssertions.satisfies;
-import static io.opentelemetry.semconv.trace.attributes.SemanticAttributes.DB_CASSANDRA_CONSISTENCY_LEVEL;
-import static io.opentelemetry.semconv.trace.attributes.SemanticAttributes.DB_CASSANDRA_COORDINATOR_DC;
-import static io.opentelemetry.semconv.trace.attributes.SemanticAttributes.DB_CASSANDRA_COORDINATOR_ID;
-import static io.opentelemetry.semconv.trace.attributes.SemanticAttributes.DB_CASSANDRA_IDEMPOTENCE;
-import static io.opentelemetry.semconv.trace.attributes.SemanticAttributes.DB_CASSANDRA_PAGE_SIZE;
-import static io.opentelemetry.semconv.trace.attributes.SemanticAttributes.DB_CASSANDRA_SPECULATIVE_EXECUTION_COUNT;
-import static io.opentelemetry.semconv.trace.attributes.SemanticAttributes.DB_CASSANDRA_TABLE;
-import static io.opentelemetry.semconv.trace.attributes.SemanticAttributes.DB_NAME;
-import static io.opentelemetry.semconv.trace.attributes.SemanticAttributes.DB_OPERATION;
-import static io.opentelemetry.semconv.trace.attributes.SemanticAttributes.DB_STATEMENT;
-import static io.opentelemetry.semconv.trace.attributes.SemanticAttributes.DB_SYSTEM;
-import static io.opentelemetry.semconv.trace.attributes.SemanticAttributes.NET_SOCK_PEER_ADDR;
-import static io.opentelemetry.semconv.trace.attributes.SemanticAttributes.NET_SOCK_PEER_NAME;
-import static io.opentelemetry.semconv.trace.attributes.SemanticAttributes.NET_SOCK_PEER_PORT;
+import static io.opentelemetry.semconv.NetworkAttributes.NETWORK_TYPE;
+import static io.opentelemetry.semconv.ServerAttributes.SERVER_ADDRESS;
+import static io.opentelemetry.semconv.ServerAttributes.SERVER_PORT;
+import static io.opentelemetry.semconv.incubating.DbIncubatingAttributes.DB_CASSANDRA_CONSISTENCY_LEVEL;
+import static io.opentelemetry.semconv.incubating.DbIncubatingAttributes.DB_CASSANDRA_COORDINATOR_DC;
+import static io.opentelemetry.semconv.incubating.DbIncubatingAttributes.DB_CASSANDRA_COORDINATOR_ID;
+import static io.opentelemetry.semconv.incubating.DbIncubatingAttributes.DB_CASSANDRA_IDEMPOTENCE;
+import static io.opentelemetry.semconv.incubating.DbIncubatingAttributes.DB_CASSANDRA_PAGE_SIZE;
+import static io.opentelemetry.semconv.incubating.DbIncubatingAttributes.DB_CASSANDRA_SPECULATIVE_EXECUTION_COUNT;
+import static io.opentelemetry.semconv.incubating.DbIncubatingAttributes.DB_CASSANDRA_TABLE;
+import static io.opentelemetry.semconv.incubating.DbIncubatingAttributes.DB_NAME;
+import static io.opentelemetry.semconv.incubating.DbIncubatingAttributes.DB_OPERATION;
+import static io.opentelemetry.semconv.incubating.DbIncubatingAttributes.DB_STATEMENT;
+import static io.opentelemetry.semconv.incubating.DbIncubatingAttributes.DB_SYSTEM;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Named.named;
 
 import com.datastax.oss.driver.api.core.CqlSession;
+import com.datastax.oss.driver.api.core.CqlSessionBuilder;
 import com.datastax.oss.driver.api.core.config.DefaultDriverOption;
 import com.datastax.oss.driver.api.core.config.DriverConfigLoader;
 import com.datastax.oss.driver.internal.core.config.typesafe.DefaultDriverConfigLoader;
 import io.opentelemetry.api.trace.SpanKind;
 import io.opentelemetry.instrumentation.testing.junit.InstrumentationExtension;
+import io.opentelemetry.semconv.NetworkAttributes;
+import java.net.InetAddress;
 import java.net.InetSocketAddress;
+import java.net.UnknownHostException;
 import java.time.Duration;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.AfterAll;
@@ -49,6 +54,10 @@ public abstract class AbstractCassandraTest {
   @SuppressWarnings("rawtypes")
   private static GenericContainer cassandra;
 
+  protected static String cassandraHost;
+
+  protected static String cassandraIp;
+
   protected static int cassandraPort;
 
   protected abstract InstrumentationExtension testing();
@@ -58,7 +67,7 @@ public abstract class AbstractCassandraTest {
   }
 
   @BeforeAll
-  static void beforeAll() {
+  static void beforeAll() throws UnknownHostException {
     cassandra =
         new GenericContainer<>("cassandra:4.0")
             .withEnv("JVM_OPTS", "-Xmx128m -Xms128m")
@@ -67,6 +76,8 @@ public abstract class AbstractCassandraTest {
             .withStartupTimeout(Duration.ofMinutes(2));
     cassandra.start();
 
+    cassandraHost = cassandra.getHost();
+    cassandraIp = InetAddress.getByName(cassandra.getHost()).getHostAddress();
     cassandraPort = cassandra.getMappedPort(9042);
   }
 
@@ -91,9 +102,16 @@ public abstract class AbstractCassandraTest {
                             .hasKind(SpanKind.CLIENT)
                             .hasNoParent()
                             .hasAttributesSatisfyingExactly(
-                                equalTo(NET_SOCK_PEER_ADDR, "127.0.0.1"),
-                                equalTo(NET_SOCK_PEER_NAME, "localhost"),
-                                equalTo(NET_SOCK_PEER_PORT, cassandraPort),
+                                satisfies(
+                                    NETWORK_TYPE,
+                                    val ->
+                                        val.satisfiesAnyOf(
+                                            v -> assertThat(v).isEqualTo("ipv4"),
+                                            v -> assertThat(v).isEqualTo("ipv6"))),
+                                equalTo(SERVER_ADDRESS, cassandraHost),
+                                equalTo(SERVER_PORT, cassandraPort),
+                                equalTo(NetworkAttributes.NETWORK_PEER_ADDRESS, cassandraIp),
+                                equalTo(NetworkAttributes.NETWORK_PEER_PORT, cassandraPort),
                                 equalTo(DB_SYSTEM, "cassandra"),
                                 equalTo(DB_NAME, parameter.keyspace),
                                 equalTo(DB_STATEMENT, parameter.expectedStatement),
@@ -138,9 +156,16 @@ public abstract class AbstractCassandraTest {
                             .hasKind(SpanKind.CLIENT)
                             .hasParent(trace.getSpan(0))
                             .hasAttributesSatisfyingExactly(
-                                equalTo(NET_SOCK_PEER_ADDR, "127.0.0.1"),
-                                equalTo(NET_SOCK_PEER_NAME, "localhost"),
-                                equalTo(NET_SOCK_PEER_PORT, cassandraPort),
+                                satisfies(
+                                    NETWORK_TYPE,
+                                    val ->
+                                        val.satisfiesAnyOf(
+                                            v -> assertThat(v).isEqualTo("ipv4"),
+                                            v -> assertThat(v).isEqualTo("ipv6"))),
+                                equalTo(SERVER_ADDRESS, cassandraHost),
+                                equalTo(SERVER_PORT, cassandraPort),
+                                equalTo(NetworkAttributes.NETWORK_PEER_ADDRESS, cassandraIp),
+                                equalTo(NetworkAttributes.NETWORK_PEER_PORT, cassandraPort),
                                 equalTo(DB_SYSTEM, "cassandra"),
                                 equalTo(DB_NAME, parameter.keyspace),
                                 equalTo(DB_STATEMENT, parameter.expectedStatement),
@@ -173,8 +198,8 @@ public abstract class AbstractCassandraTest {
                     null,
                     "DROP KEYSPACE IF EXISTS sync_test",
                     "DROP KEYSPACE IF EXISTS sync_test",
-                    "DB Query",
-                    null,
+                    "DROP",
+                    "DROP",
                     null))),
         Arguments.of(
             named(
@@ -183,8 +208,8 @@ public abstract class AbstractCassandraTest {
                     null,
                     "CREATE KEYSPACE sync_test WITH REPLICATION = {'class':'SimpleStrategy', 'replication_factor':3}",
                     "CREATE KEYSPACE sync_test WITH REPLICATION = {?:?, ?:?}",
-                    "DB Query",
-                    null,
+                    "CREATE",
+                    "CREATE",
                     null))),
         Arguments.of(
             named(
@@ -193,9 +218,9 @@ public abstract class AbstractCassandraTest {
                     "sync_test",
                     "CREATE TABLE sync_test.users ( id UUID PRIMARY KEY, name text )",
                     "CREATE TABLE sync_test.users ( id UUID PRIMARY KEY, name text )",
-                    "sync_test",
-                    null,
-                    null))),
+                    "CREATE TABLE sync_test.users",
+                    "CREATE TABLE",
+                    "sync_test.users"))),
         Arguments.of(
             named(
                 "Insert data",
@@ -227,8 +252,8 @@ public abstract class AbstractCassandraTest {
                     null,
                     "DROP KEYSPACE IF EXISTS async_test",
                     "DROP KEYSPACE IF EXISTS async_test",
-                    "DB Query",
-                    null,
+                    "DROP",
+                    "DROP",
                     null))),
         Arguments.of(
             named(
@@ -237,8 +262,8 @@ public abstract class AbstractCassandraTest {
                     null,
                     "CREATE KEYSPACE async_test WITH REPLICATION = {'class':'SimpleStrategy', 'replication_factor':3}",
                     "CREATE KEYSPACE async_test WITH REPLICATION = {?:?, ?:?}",
-                    "DB Query",
-                    null,
+                    "CREATE",
+                    "CREATE",
                     null))),
         Arguments.of(
             named(
@@ -247,9 +272,9 @@ public abstract class AbstractCassandraTest {
                     "async_test",
                     "CREATE TABLE async_test.users ( id UUID PRIMARY KEY, name text )",
                     "CREATE TABLE async_test.users ( id UUID PRIMARY KEY, name text )",
-                    "async_test",
-                    null,
-                    null))),
+                    "CREATE TABLE async_test.users",
+                    "CREATE TABLE",
+                    "async_test.users"))),
         Arguments.of(
             named(
                 "Insert data",
@@ -300,13 +325,18 @@ public abstract class AbstractCassandraTest {
     DriverConfigLoader configLoader =
         DefaultDriverConfigLoader.builder()
             .withDuration(DefaultDriverOption.REQUEST_TIMEOUT, Duration.ofSeconds(0))
+            .withDuration(DefaultDriverOption.CONNECTION_INIT_QUERY_TIMEOUT, Duration.ofSeconds(10))
             .build();
     return wrap(
-        CqlSession.builder()
-            .addContactPoint(new InetSocketAddress("localhost", cassandraPort))
+        addContactPoint(CqlSession.builder())
             .withConfigLoader(configLoader)
             .withLocalDatacenter("datacenter1")
             .withKeyspace(keyspace)
             .build());
+  }
+
+  protected CqlSessionBuilder addContactPoint(CqlSessionBuilder sessionBuilder) {
+    sessionBuilder.addContactPoint(new InetSocketAddress(cassandra.getHost(), cassandraPort));
+    return sessionBuilder;
   }
 }

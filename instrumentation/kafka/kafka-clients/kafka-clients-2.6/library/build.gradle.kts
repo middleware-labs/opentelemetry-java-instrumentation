@@ -19,5 +19,26 @@ dependencies {
 tasks {
   withType<Test>().configureEach {
     usesService(gradle.sharedServices.registrations["testcontainersBuildService"].service)
+    systemProperty("testLatestDeps", findProperty("testLatestDeps") as Boolean)
+  }
+
+  val testReceiveSpansDisabled by registering(Test::class) {
+    filter {
+      includeTestsMatching("InterceptorsSuppressReceiveSpansTest")
+      includeTestsMatching("WrapperSuppressReceiveSpansTest")
+    }
+    include("**/InterceptorsSuppressReceiveSpansTest.*", "**/WrapperSuppressReceiveSpansTest.*")
+  }
+
+  test {
+    filter {
+      excludeTestsMatching("InterceptorsSuppressReceiveSpansTest")
+      excludeTestsMatching("WrapperSuppressReceiveSpansTest")
+    }
+    jvmArgs("-Dotel.instrumentation.messaging.experimental.receive-telemetry.enabled=true")
+  }
+
+  check {
+    dependsOn(testReceiveSpansDisabled)
   }
 }

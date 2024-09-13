@@ -6,6 +6,7 @@
 package io.opentelemetry.instrumentation.api.internal;
 
 import io.opentelemetry.api.trace.SpanKind;
+import java.security.PrivilegedAction;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.Executors;
@@ -82,18 +83,20 @@ public final class SupportabilityMetrics {
   }
 
   // this private method is designed for assignment of the return value
-  @SuppressWarnings("CanIgnoreReturnValueSuggester")
+  @SuppressWarnings("OtelCanIgnoreReturnValueSuggester")
   private SupportabilityMetrics start() {
     if (agentDebugEnabled) {
       ScheduledExecutorService executor =
           Executors.newScheduledThreadPool(
               1,
-              runnable -> {
-                Thread result = new Thread(runnable, "supportability_metrics_reporter");
-                result.setDaemon(true);
-                result.setContextClassLoader(null);
-                return result;
-              });
+              runnable ->
+                  doPrivileged(
+                      () -> {
+                        Thread result = new Thread(runnable, "supportability_metrics_reporter");
+                        result.setDaemon(true);
+                        result.setContextClassLoader(null);
+                        return result;
+                      }));
       executor.scheduleAtFixedRate(this::report, 5, 5, TimeUnit.SECONDS);
       // the condition below will always be false, but by referencing the executor it ensures the
       // executor can't become unreachable in the middle of the scheduleAtFixedRate() method
@@ -105,6 +108,13 @@ public final class SupportabilityMetrics {
       }
     }
     return this;
+  }
+
+  private static <T> T doPrivileged(PrivilegedAction<T> action) {
+    if (System.getSecurityManager() == null) {
+      return action.run();
+    }
+    return java.security.AccessController.doPrivileged(action);
   }
 
   /**

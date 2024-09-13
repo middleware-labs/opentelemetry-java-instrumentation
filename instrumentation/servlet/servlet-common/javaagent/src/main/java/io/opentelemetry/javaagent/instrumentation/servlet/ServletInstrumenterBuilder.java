@@ -7,18 +7,21 @@ package io.opentelemetry.javaagent.instrumentation.servlet;
 
 import com.google.errorprone.annotations.CanIgnoreReturnValue;
 import io.opentelemetry.api.GlobalOpenTelemetry;
+import io.opentelemetry.instrumentation.api.incubator.semconv.http.HttpExperimentalAttributesExtractor;
+import io.opentelemetry.instrumentation.api.incubator.semconv.http.HttpServerExperimentalMetrics;
 import io.opentelemetry.instrumentation.api.instrumenter.AttributesExtractor;
 import io.opentelemetry.instrumentation.api.instrumenter.ContextCustomizer;
 import io.opentelemetry.instrumentation.api.instrumenter.Instrumenter;
 import io.opentelemetry.instrumentation.api.instrumenter.InstrumenterBuilder;
 import io.opentelemetry.instrumentation.api.instrumenter.SpanNameExtractor;
-import io.opentelemetry.instrumentation.api.instrumenter.http.HttpRouteHolder;
-import io.opentelemetry.instrumentation.api.instrumenter.http.HttpServerAttributesExtractor;
-import io.opentelemetry.instrumentation.api.instrumenter.http.HttpServerAttributesGetter;
-import io.opentelemetry.instrumentation.api.instrumenter.http.HttpServerMetrics;
-import io.opentelemetry.instrumentation.api.instrumenter.http.HttpSpanNameExtractor;
-import io.opentelemetry.instrumentation.api.instrumenter.http.HttpSpanStatusExtractor;
-import io.opentelemetry.javaagent.bootstrap.internal.CommonConfig;
+import io.opentelemetry.instrumentation.api.internal.InstrumenterUtil;
+import io.opentelemetry.instrumentation.api.semconv.http.HttpServerAttributesExtractor;
+import io.opentelemetry.instrumentation.api.semconv.http.HttpServerAttributesGetter;
+import io.opentelemetry.instrumentation.api.semconv.http.HttpServerMetrics;
+import io.opentelemetry.instrumentation.api.semconv.http.HttpServerRoute;
+import io.opentelemetry.instrumentation.api.semconv.http.HttpSpanNameExtractor;
+import io.opentelemetry.instrumentation.api.semconv.http.HttpSpanStatusExtractor;
+import io.opentelemetry.javaagent.bootstrap.internal.AgentCommonConfig;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -28,6 +31,8 @@ public final class ServletInstrumenterBuilder<REQUEST, RESPONSE> {
 
   private final List<ContextCustomizer<? super ServletRequestContext<REQUEST>>> contextCustomizers =
       new ArrayList<>();
+
+  private boolean propagateOperationListenersToOnEnd;
 
   public static <REQUEST, RESPONSE> ServletInstrumenterBuilder<REQUEST, RESPONSE> create() {
     return new ServletInstrumenterBuilder<>();
@@ -40,6 +45,12 @@ public final class ServletInstrumenterBuilder<REQUEST, RESPONSE> {
     return this;
   }
 
+  @CanIgnoreReturnValue
+  public ServletInstrumenterBuilder<REQUEST, RESPONSE> propagateOperationListenersToOnEnd() {
+    propagateOperationListenersToOnEnd = true;
+    return this;
+  }
+
   public Instrumenter<ServletRequestContext<REQUEST>, ServletResponseContext<RESPONSE>> build(
       String instrumentationName,
       ServletAccessor<REQUEST, RESPONSE> accessor,
@@ -47,8 +58,6 @@ public final class ServletInstrumenterBuilder<REQUEST, RESPONSE> {
       HttpServerAttributesGetter<ServletRequestContext<REQUEST>, ServletResponseContext<RESPONSE>>
           httpAttributesGetter) {
 
-    ServletNetAttributesGetter<REQUEST, RESPONSE> netAttributesGetter =
-        new ServletNetAttributesGetter<>(accessor);
     ServletErrorCauseExtractor<REQUEST, RESPONSE> errorCauseExtractor =
         new ServletErrorCauseExtractor<>(accessor);
     AttributesExtractor<ServletRequestContext<REQUEST>, ServletResponseContext<RESPONSE>>
@@ -60,13 +69,17 @@ public final class ServletInstrumenterBuilder<REQUEST, RESPONSE> {
             .setSpanStatusExtractor(HttpSpanStatusExtractor.create(httpAttributesGetter))
             .setErrorCauseExtractor(errorCauseExtractor)
             .addAttributesExtractor(
-                HttpServerAttributesExtractor.builder(httpAttributesGetter, netAttributesGetter)
-                    .setCapturedRequestHeaders(CommonConfig.get().getServerRequestHeaders())
-                    .setCapturedResponseHeaders(CommonConfig.get().getServerResponseHeaders())
+                HttpServerAttributesExtractor.builder(httpAttributesGetter)
+                    .setCapturedRequestHeaders(AgentCommonConfig.get().getServerRequestHeaders())
+                    .setCapturedResponseHeaders(AgentCommonConfig.get().getServerResponseHeaders())
+                    .setKnownMethods(AgentCommonConfig.get().getKnownHttpRequestMethods())
                     .build())
             .addAttributesExtractor(additionalAttributesExtractor)
             .addOperationMetrics(HttpServerMetrics.get())
-            .addContextCustomizer(HttpRouteHolder.create(httpAttributesGetter));
+            .addContextCustomizer(
+                HttpServerRoute.builder(httpAttributesGetter)
+                    .setKnownMethods(AgentCommonConfig.get().getKnownHttpRequestMethods())
+                    .build());
     if (ServletRequestParametersExtractor.enabled()) {
       AttributesExtractor<ServletRequestContext<REQUEST>, ServletResponseContext<RESPONSE>>
           requestParametersExtractor = new ServletRequestParametersExtractor<>(accessor);
@@ -76,6 +89,14 @@ public final class ServletInstrumenterBuilder<REQUEST, RESPONSE> {
         contextCustomizers) {
       builder.addContextCustomizer(contextCustomizer);
     }
+    if (AgentCommonConfig.get().shouldEmitExperimentalHttpServerTelemetry()) {
+      builder
+          .addAttributesExtractor(HttpExperimentalAttributesExtractor.create(httpAttributesGetter))
+          .addOperationMetrics(HttpServerExperimentalMetrics.get());
+    }
+    if (propagateOperationListenersToOnEnd) {
+      InstrumenterUtil.propagateOperationListenersToOnEnd(builder);
+    }
     return builder.buildServerInstrumenter(new ServletRequestGetter<>(accessor));
   }
 
@@ -84,7 +105,9 @@ public final class ServletInstrumenterBuilder<REQUEST, RESPONSE> {
     HttpServerAttributesGetter<ServletRequestContext<REQUEST>, ServletResponseContext<RESPONSE>>
         httpAttributesGetter = new ServletHttpAttributesGetter<>(accessor);
     SpanNameExtractor<ServletRequestContext<REQUEST>> spanNameExtractor =
-        HttpSpanNameExtractor.create(httpAttributesGetter);
+        HttpSpanNameExtractor.builder(httpAttributesGetter)
+            .setKnownMethods(AgentCommonConfig.get().getKnownHttpRequestMethods())
+            .build();
 
     return build(instrumentationName, accessor, spanNameExtractor, httpAttributesGetter);
   }

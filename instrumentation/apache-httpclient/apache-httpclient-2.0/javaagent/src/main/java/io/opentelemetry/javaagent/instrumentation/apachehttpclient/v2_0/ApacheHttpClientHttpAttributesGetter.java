@@ -8,12 +8,13 @@ package io.opentelemetry.javaagent.instrumentation.apachehttpclient.v2_0;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 
-import io.opentelemetry.instrumentation.api.instrumenter.http.HttpClientAttributesGetter;
+import io.opentelemetry.instrumentation.api.semconv.http.HttpClientAttributesGetter;
 import java.util.List;
 import javax.annotation.Nullable;
 import org.apache.commons.httpclient.Header;
 import org.apache.commons.httpclient.HostConfiguration;
 import org.apache.commons.httpclient.HttpMethod;
+import org.apache.commons.httpclient.HttpMethodBase;
 import org.apache.commons.httpclient.StatusLine;
 
 final class ApacheHttpClientHttpAttributesGetter
@@ -73,5 +74,33 @@ final class ApacheHttpClientHttpAttributesGetter
   public List<String> getHttpResponseHeader(HttpMethod request, HttpMethod response, String name) {
     Header header = response.getResponseHeader(name);
     return header == null ? emptyList() : singletonList(header.getValue());
+  }
+
+  @Override
+  public String getNetworkProtocolName(HttpMethod request, @Nullable HttpMethod response) {
+    return "http";
+  }
+
+  @Nullable
+  @Override
+  public String getNetworkProtocolVersion(HttpMethod request, @Nullable HttpMethod response) {
+    if (request instanceof HttpMethodBase) {
+      return ((HttpMethodBase) request).isHttp11() ? "1.1" : "1.0";
+    }
+    return null;
+  }
+
+  @Override
+  @Nullable
+  public String getServerAddress(HttpMethod request) {
+    HostConfiguration hostConfiguration = request.getHostConfiguration();
+    return hostConfiguration != null ? hostConfiguration.getHost() : null;
+  }
+
+  @Override
+  @Nullable
+  public Integer getServerPort(HttpMethod request) {
+    HostConfiguration hostConfiguration = request.getHostConfiguration();
+    return hostConfiguration != null ? hostConfiguration.getPort() : null;
   }
 }

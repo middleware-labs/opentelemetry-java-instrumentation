@@ -28,7 +28,17 @@ public class AkkaHttpServerInstrumentationModule extends InstrumentationModule {
   }
 
   @Override
+  public boolean isIndyModule() {
+    // AkkaHttpServerInstrumentationModule and AkkaHttpServerRouteInstrumentationModule share
+    // AkkaRouteHolder class
+    return false;
+  }
+
+  @Override
   public List<TypeInstrumentation> typeInstrumentations() {
-    return asList(new HttpExtServerInstrumentation(), new GraphInterpreterInstrumentation());
+    return asList(
+        new HttpExtServerInstrumentation(),
+        new GraphInterpreterInstrumentation(),
+        new AkkaHttpServerSourceInstrumentation());
   }
 }

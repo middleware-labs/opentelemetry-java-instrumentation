@@ -5,6 +5,7 @@
 
 package io.opentelemetry.instrumentation.jmx.engine;
 
+import java.lang.management.ManagementFactory;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -24,7 +25,13 @@ class BeanFinder {
 
   private final MetricRegistrar registrar;
   private MetricConfiguration conf;
-  private final ScheduledExecutorService exec = Executors.newSingleThreadScheduledExecutor();
+  private final ScheduledExecutorService exec =
+      Executors.newSingleThreadScheduledExecutor(
+          runnable -> {
+            Thread result = new Thread(runnable, "jmx_bean_finder");
+            result.setDaemon(true);
+            return result;
+          });
   private final long discoveryDelay;
   private final long maxDelay;
   private long delay = 1000; // number of milliseconds until first attempt to discover MBeans
@@ -37,6 +44,19 @@ class BeanFinder {
 
   void discoverBeans(MetricConfiguration conf) {
     this.conf = conf;
+
+    exec.schedule(
+        () -> {
+          // Issue 9336: Corner case: PlatformMBeanServer will remain unitialized until a direct
+          // reference to it is made. This call makes sure that the PlatformMBeanServer will be in
+          // the set of MBeanServers reported by MBeanServerFactory.
+          // Issue 11143: This call initializes java.util.logging.LogManager. We should not call it
+          // before application has had a chance to configure custom log manager. This is needed for
+          // wildfly.
+          ManagementFactory.getPlatformMBeanServer();
+        },
+        discoveryDelay,
+        TimeUnit.MILLISECONDS);
 
     exec.schedule(
         new Runnable() {

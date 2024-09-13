@@ -5,8 +5,6 @@
 
 package io.opentelemetry.javaagent.tooling;
 
-import static java.util.Collections.singletonMap;
-
 import io.opentelemetry.javaagent.bootstrap.OpenTelemetrySdkAccess;
 import io.opentelemetry.sdk.OpenTelemetrySdk;
 import io.opentelemetry.sdk.autoconfigure.AutoConfiguredOpenTelemetrySdk;
@@ -26,11 +24,8 @@ public final class OpenTelemetryInstaller {
 
     AutoConfiguredOpenTelemetrySdk autoConfiguredSdk =
         AutoConfiguredOpenTelemetrySdk.builder()
-            .setResultAsGlobal(true)
+            .setResultAsGlobal()
             .setServiceClassLoader(extensionClassLoader)
-            // disable the logs exporter by default for the time being
-            // FIXME remove this in the 2.x branch
-            .addPropertiesSupplier(() -> singletonMap("otel.logs.exporter", "none"))
             .build();
     OpenTelemetrySdk sdk = autoConfiguredSdk.getOpenTelemetrySdk();
 

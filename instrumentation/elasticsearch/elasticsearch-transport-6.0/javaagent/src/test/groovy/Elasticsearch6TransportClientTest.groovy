@@ -3,7 +3,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import io.opentelemetry.semconv.trace.attributes.SemanticAttributes
+import io.opentelemetry.semconv.incubating.DbIncubatingAttributes
+import io.opentelemetry.semconv.NetworkAttributes
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest
 import org.elasticsearch.client.transport.TransportClient
 import org.elasticsearch.common.io.FileSystemUtils
@@ -105,12 +106,11 @@ class Elasticsearch6TransportClientTest extends AbstractElasticsearchTransportCl
           kind CLIENT
           childOf(span(0))
           attributes {
-            "$SemanticAttributes.NET_SOCK_FAMILY" { it == SemanticAttributes.NetSockFamilyValues.INET6 || it == null }
-            "$SemanticAttributes.NET_SOCK_PEER_ADDR" tcpPublishAddress.address
-            "$SemanticAttributes.NET_SOCK_PEER_NAME" tcpPublishAddress.address().hostString
-            "$SemanticAttributes.NET_SOCK_PEER_PORT" tcpPublishAddress.port
-            "$SemanticAttributes.DB_SYSTEM" "elasticsearch"
-            "$SemanticAttributes.DB_OPERATION" "ClusterHealthAction"
+            "$NetworkAttributes.NETWORK_TYPE" {  it == "ipv4" || it == "ipv6" }
+            "$NetworkAttributes.NETWORK_PEER_ADDRESS" tcpPublishAddress.address
+            "$NetworkAttributes.NETWORK_PEER_PORT" tcpPublishAddress.port
+            "$DbIncubatingAttributes.DB_SYSTEM" "elasticsearch"
+            "$DbIncubatingAttributes.DB_OPERATION" "ClusterHealthAction"
             "elasticsearch.action" "ClusterHealthAction"
             "elasticsearch.request" "ClusterHealthRequest"
           }
@@ -154,8 +154,8 @@ class Elasticsearch6TransportClientTest extends AbstractElasticsearchTransportCl
           status ERROR
           errorEvent RemoteTransportException, String
           attributes {
-            "$SemanticAttributes.DB_SYSTEM" "elasticsearch"
-            "$SemanticAttributes.DB_OPERATION" "GetAction"
+            "$DbIncubatingAttributes.DB_SYSTEM" "elasticsearch"
+            "$DbIncubatingAttributes.DB_OPERATION" "GetAction"
             "elasticsearch.action" "GetAction"
             "elasticsearch.request" "GetRequest"
             "elasticsearch.request.indices" indexName
@@ -225,12 +225,11 @@ class Elasticsearch6TransportClientTest extends AbstractElasticsearchTransportCl
           name "CreateIndexAction"
           kind CLIENT
           attributes {
-            "$SemanticAttributes.NET_SOCK_FAMILY" { it == SemanticAttributes.NetSockFamilyValues.INET6 || it == null }
-            "$SemanticAttributes.NET_SOCK_PEER_ADDR" tcpPublishAddress.address
-            "$SemanticAttributes.NET_SOCK_PEER_NAME" tcpPublishAddress.address().hostString
-            "$SemanticAttributes.NET_SOCK_PEER_PORT" tcpPublishAddress.port
-            "$SemanticAttributes.DB_SYSTEM" "elasticsearch"
-            "$SemanticAttributes.DB_OPERATION" "CreateIndexAction"
+            "$NetworkAttributes.NETWORK_TYPE" {  it == "ipv4" || it == "ipv6"  }
+            "$NetworkAttributes.NETWORK_PEER_ADDRESS" tcpPublishAddress.address
+            "$NetworkAttributes.NETWORK_PEER_PORT" tcpPublishAddress.port
+            "$DbIncubatingAttributes.DB_SYSTEM" "elasticsearch"
+            "$DbIncubatingAttributes.DB_OPERATION" "CreateIndexAction"
             "elasticsearch.action" "CreateIndexAction"
             "elasticsearch.request" "CreateIndexRequest"
             "elasticsearch.request.indices" indexName
@@ -242,12 +241,11 @@ class Elasticsearch6TransportClientTest extends AbstractElasticsearchTransportCl
           name "GetAction"
           kind CLIENT
           attributes {
-            "$SemanticAttributes.NET_SOCK_FAMILY" { it == SemanticAttributes.NetSockFamilyValues.INET6 || it == null }
-            "$SemanticAttributes.NET_SOCK_PEER_ADDR" tcpPublishAddress.address
-            "$SemanticAttributes.NET_SOCK_PEER_NAME" tcpPublishAddress.address().hostString
-            "$SemanticAttributes.NET_SOCK_PEER_PORT" tcpPublishAddress.port
-            "$SemanticAttributes.DB_SYSTEM" "elasticsearch"
-            "$SemanticAttributes.DB_OPERATION" "GetAction"
+            "$NetworkAttributes.NETWORK_TYPE" {  it == "ipv4" || it == "ipv6" }
+            "$NetworkAttributes.NETWORK_PEER_ADDRESS" tcpPublishAddress.address
+            "$NetworkAttributes.NETWORK_PEER_PORT" tcpPublishAddress.port
+            "$DbIncubatingAttributes.DB_SYSTEM" "elasticsearch"
+            "$DbIncubatingAttributes.DB_OPERATION" "GetAction"
             "elasticsearch.action" "GetAction"
             "elasticsearch.request" "GetRequest"
             "elasticsearch.request.indices" indexName
@@ -262,8 +260,8 @@ class Elasticsearch6TransportClientTest extends AbstractElasticsearchTransportCl
           name ~/(Auto)?PutMappingAction/
           kind CLIENT
           attributes {
-            "$SemanticAttributes.DB_SYSTEM" "elasticsearch"
-            "$SemanticAttributes.DB_OPERATION" ~/(Auto)?PutMappingAction/
+            "$DbIncubatingAttributes.DB_SYSTEM" "elasticsearch"
+            "$DbIncubatingAttributes.DB_OPERATION" ~/(Auto)?PutMappingAction/
             "elasticsearch.action" ~/(Auto)?PutMappingAction/
             "elasticsearch.request" "PutMappingRequest"
           }
@@ -274,12 +272,11 @@ class Elasticsearch6TransportClientTest extends AbstractElasticsearchTransportCl
           name "IndexAction"
           kind CLIENT
           attributes {
-            "$SemanticAttributes.NET_SOCK_FAMILY" { it == SemanticAttributes.NetSockFamilyValues.INET6 || it == null }
-            "$SemanticAttributes.NET_SOCK_PEER_ADDR" tcpPublishAddress.address
-            "$SemanticAttributes.NET_SOCK_PEER_NAME" tcpPublishAddress.address().hostString
-            "$SemanticAttributes.NET_SOCK_PEER_PORT" tcpPublishAddress.port
-            "$SemanticAttributes.DB_SYSTEM" "elasticsearch"
-            "$SemanticAttributes.DB_OPERATION" "IndexAction"
+            "$NetworkAttributes.NETWORK_TYPE" {  it == "ipv4" || it == "ipv6" }
+            "$NetworkAttributes.NETWORK_PEER_ADDRESS" tcpPublishAddress.address
+            "$NetworkAttributes.NETWORK_PEER_PORT" tcpPublishAddress.port
+            "$DbIncubatingAttributes.DB_SYSTEM" "elasticsearch"
+            "$DbIncubatingAttributes.DB_OPERATION" "IndexAction"
             "elasticsearch.action" "IndexAction"
             "elasticsearch.request" "IndexRequest"
             "elasticsearch.request.indices" indexName
@@ -297,12 +294,11 @@ class Elasticsearch6TransportClientTest extends AbstractElasticsearchTransportCl
           name "GetAction"
           kind CLIENT
           attributes {
-            "$SemanticAttributes.NET_SOCK_FAMILY" { it == SemanticAttributes.NetSockFamilyValues.INET6 || it == null }
-            "$SemanticAttributes.NET_SOCK_PEER_ADDR" tcpPublishAddress.address
-            "$SemanticAttributes.NET_SOCK_PEER_NAME" tcpPublishAddress.address().hostString
-            "$SemanticAttributes.NET_SOCK_PEER_PORT" tcpPublishAddress.port
-            "$SemanticAttributes.DB_SYSTEM" "elasticsearch"
-            "$SemanticAttributes.DB_OPERATION" "GetAction"
+            "$NetworkAttributes.NETWORK_TYPE" {  it == "ipv4" || it == "ipv6" }
+            "$NetworkAttributes.NETWORK_PEER_ADDRESS" tcpPublishAddress.address
+            "$NetworkAttributes.NETWORK_PEER_PORT" tcpPublishAddress.port
+            "$DbIncubatingAttributes.DB_SYSTEM" "elasticsearch"
+            "$DbIncubatingAttributes.DB_OPERATION" "GetAction"
             "elasticsearch.action" "GetAction"
             "elasticsearch.request" "GetRequest"
             "elasticsearch.request.indices" indexName

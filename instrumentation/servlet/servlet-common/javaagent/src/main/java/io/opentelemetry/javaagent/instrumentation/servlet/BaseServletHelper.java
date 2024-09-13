@@ -5,19 +5,20 @@
 
 package io.opentelemetry.javaagent.instrumentation.servlet;
 
-import static io.opentelemetry.instrumentation.api.instrumenter.http.HttpRouteSource.FILTER;
-import static io.opentelemetry.instrumentation.api.instrumenter.http.HttpRouteSource.SERVLET;
+import static io.opentelemetry.instrumentation.api.semconv.http.HttpServerRouteSource.SERVER;
+import static io.opentelemetry.instrumentation.api.semconv.http.HttpServerRouteSource.SERVER_FILTER;
 
 import io.opentelemetry.api.trace.Span;
 import io.opentelemetry.api.trace.SpanContext;
 import io.opentelemetry.context.Context;
 import io.opentelemetry.instrumentation.api.instrumenter.Instrumenter;
 import io.opentelemetry.instrumentation.api.instrumenter.LocalRootSpan;
-import io.opentelemetry.instrumentation.api.instrumenter.http.HttpRouteHolder;
+import io.opentelemetry.instrumentation.api.semconv.http.HttpServerRoute;
+import io.opentelemetry.javaagent.bootstrap.internal.AgentCommonConfig;
 import io.opentelemetry.javaagent.bootstrap.servlet.AppServerBridge;
 import io.opentelemetry.javaagent.bootstrap.servlet.MappingResolver;
 import io.opentelemetry.javaagent.bootstrap.servlet.ServletContextPath;
-import io.opentelemetry.semconv.trace.attributes.SemanticAttributes;
+import io.opentelemetry.semconv.incubating.EnduserIncubatingAttributes;
 import java.security.Principal;
 import java.util.function.Function;
 
@@ -86,8 +87,8 @@ public abstract class BaseServletHelper<REQUEST, RESPONSE> {
       Context context, REQUEST request, MappingResolver mappingResolver, boolean servlet) {
     Context result = addServletContextPath(context, request);
     if (mappingResolver != null) {
-      HttpRouteHolder.updateHttpRoute(
-          result, servlet ? SERVLET : FILTER, spanNameProvider, mappingResolver, request);
+      HttpServerRoute.update(
+          result, servlet ? SERVER : SERVER_FILTER, spanNameProvider, mappingResolver, request);
     }
 
     return result;
@@ -127,19 +128,23 @@ public abstract class BaseServletHelper<REQUEST, RESPONSE> {
   }
 
   /**
-   * Capture {@link SemanticAttributes#ENDUSER_ID} as span attributes when SERVER span is not create
-   * by servlet instrumentation.
+   * Capture {@link EnduserIncubatingAttributes#ENDUSER_ID} as span attributes when SERVER span is
+   * not create by servlet instrumentation.
    *
    * <p>When SERVER span is created by servlet instrumentation we register {@link
    * ServletAdditionalAttributesExtractor} as an attribute extractor. When SERVER span is not
    * created by servlet instrumentation we call this method on exit from the last servlet or filter.
    */
   private void captureEnduserId(Span serverSpan, REQUEST request) {
+    if (!AgentCommonConfig.get().getEnduserConfig().isIdEnabled()) {
+      return;
+    }
+
     Principal principal = accessor.getRequestUserPrincipal(request);
     if (principal != null) {
       String name = principal.getName();
       if (name != null) {
-        serverSpan.setAttribute(SemanticAttributes.ENDUSER_ID, name);
+        serverSpan.setAttribute(EnduserIncubatingAttributes.ENDUSER_ID, name);
       }
     }
   }

@@ -8,8 +8,10 @@ package io.opentelemetry.instrumentation.testing.util;
 import static java.util.stream.Collectors.toList;
 import static org.assertj.core.api.Assertions.assertThat;
 
+import io.opentelemetry.api.common.AttributeKey;
 import io.opentelemetry.api.trace.SpanId;
 import io.opentelemetry.api.trace.SpanKind;
+import io.opentelemetry.sdk.common.InstrumentationScopeInfo;
 import io.opentelemetry.sdk.trace.data.SpanData;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -32,6 +34,13 @@ public final class TelemetryDataUtil {
   public static Comparator<List<SpanData>> orderByRootSpanName(String... names) {
     List<String> list = Arrays.asList(names);
     return Comparator.comparing(span -> list.indexOf(span.get(0).getName()));
+  }
+
+  public static <T extends Comparable<T>> Comparator<List<SpanData>> comparingRootSpanAttribute(
+      AttributeKey<T> key) {
+    return Comparator.comparing(
+        span -> span.get(0).getAttributes().get(key),
+        Comparator.nullsFirst(Comparator.naturalOrder()));
   }
 
   public static List<List<SpanData>> groupTraces(List<SpanData> spans) {
@@ -83,10 +92,13 @@ public final class TelemetryDataUtil {
   public static void assertScopeVersion(List<List<SpanData>> traces) {
     for (List<SpanData> trace : traces) {
       for (SpanData span : trace) {
-        if (!span.getInstrumentationScopeInfo().getName().equals("test")) {
-          assertThat(span.getInstrumentationScopeInfo().getVersion())
+        InstrumentationScopeInfo scopeInfo = span.getInstrumentationScopeInfo();
+        if (!scopeInfo.getName().equals("test")) {
+          assertThat(scopeInfo.getVersion())
               .as(
-                  "Instrumentation version was empty; make sure that the instrumentation name matches the gradle module name")
+                  "Instrumentation version of module %s was empty; make sure that the "
+                      + "instrumentation name matches the gradle module name",
+                  scopeInfo.getName())
               .isNotNull();
         }
       }

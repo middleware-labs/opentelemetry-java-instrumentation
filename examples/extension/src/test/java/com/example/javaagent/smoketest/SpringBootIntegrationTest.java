@@ -14,9 +14,10 @@ import java.util.jar.JarFile;
 import okhttp3.Request;
 import okhttp3.Response;
 import org.junit.jupiter.api.Assertions;
+import org.testcontainers.containers.wait.strategy.Wait;
+import org.testcontainers.containers.wait.strategy.WaitStrategy;
 
 class SpringBootIntegrationTest extends IntegrationTest {
-
   @Override
   protected String getTargetImage(int jdk) {
     return "ghcr.io/open-telemetry/opentelemetry-java-instrumentation/smoke-test-spring-boot:jdk"
@@ -24,48 +25,43 @@ class SpringBootIntegrationTest extends IntegrationTest {
         + "-20211213.1570880324";
   }
 
+  @Override
+  protected WaitStrategy getTargetWaitStrategy() {
+    return Wait.forHttp("/").forPort(8080).forStatusCode(200);
+  }
+
   // @Test
   // public void extensionsAreLoadedFromJar() throws IOException, InterruptedException {
-  //   startTarget("/opentelemetry-extensions.jar");
-
-  //   testAndVerify();
-
-  //   stopTarget();
+  //     startTarget("/opentelemetry-extensions.jar");
+  //     testAndVerify();
+  //     stopTarget();
   // }
 
   // @Test
   // public void extensionsAreLoadedFromFolder() throws IOException, InterruptedException {
-  //   startTarget("/");
-
-  //   testAndVerify();
-
-  //   stopTarget();
+  //     startTarget("/");
+  //     testAndVerify();
+  //     stopTarget();
   // }
 
   // @Test
   // public void extensionsAreLoadedFromJavaagent() throws IOException, InterruptedException {
-  //   startTargetWithExtendedAgent();
-
-  //   testAndVerify();
-
-  //   stopTarget();
+  //     startTargetWithExtendedAgent();
+  //     testAndVerify();
+  //     stopTarget();
   // }
 
   private void testAndVerify() throws IOException, InterruptedException {
     String url = String.format("http://localhost:%d/greeting", target.getMappedPort(8080));
     Request request = new Request.Builder().url(url).get().build();
-
     String currentAgentVersion =
         (String)
             new JarFile(agentPath)
                 .getManifest()
                 .getMainAttributes()
                 .get(Attributes.Name.IMPLEMENTATION_VERSION);
-
     Response response = client.newCall(request).execute();
-
     Collection<ExportTraceServiceRequest> traces = waitForTraces();
-
     Assertions.assertNotNull(response.header("X-server-id"));
     Assertions.assertEquals(1, response.headers("X-server-id").size());
     Assertions.assertTrue(TraceId.isValid(response.header("X-server-id")));

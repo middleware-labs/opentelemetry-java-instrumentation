@@ -42,6 +42,15 @@ graalvmNative {
 
   binaries.all {
     resources.autodetect()
+
+    // Workaround for https://github.com/junit-team/junit5/issues/3405
+    buildArgs.add("--initialize-at-build-time=org.junit.platform.launcher.core.LauncherConfig")
+    buildArgs.add("--initialize-at-build-time=org.junit.jupiter.engine.config.InstantiatingConfigurationParameterConverter")
+  }
+
+  // See https://github.com/graalvm/native-build-tools/issues/572
+  metadataRepository {
+    enabled.set(false)
   }
 
   toolchainDetection.set(false)
@@ -61,6 +70,7 @@ testing {
       dependencies {
         implementation(project(":instrumentation:logback:logback-appender-1.0:library"))
         implementation("io.opentelemetry:opentelemetry-sdk-testing")
+        implementation(project(":testing-common"))
 
         if (latestDepTest) {
           implementation("ch.qos.logback:logback-classic:+")
@@ -86,4 +96,8 @@ tasks {
   check {
     dependsOn(testing.suites)
   }
+}
+
+tasks.withType<Test>().configureEach {
+  jvmArgs("-Dotel.instrumentation.common.experimental.controller-telemetry.enabled=true")
 }

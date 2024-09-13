@@ -12,7 +12,7 @@ import io.opentelemetry.api.logs.LogRecordBuilder;
 import io.opentelemetry.api.logs.Severity;
 import io.opentelemetry.context.Context;
 import io.opentelemetry.instrumentation.api.internal.cache.Cache;
-import io.opentelemetry.semconv.trace.attributes.SemanticAttributes;
+import io.opentelemetry.semconv.ExceptionAttributes;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.util.List;
@@ -28,6 +28,10 @@ import org.apache.logging.log4j.message.Message;
  * any time.
  */
 public final class LogEventMapper<T> {
+
+  // copied from ThreadIncubatingAttributes
+  private static final AttributeKey<Long> THREAD_ID = AttributeKey.longKey("thread.id");
+  private static final AttributeKey<String> THREAD_NAME = AttributeKey.stringKey("thread.name");
 
   private static final String SPECIAL_MAP_MESSAGE_ATTRIBUTE = "message";
 
@@ -80,7 +84,9 @@ public final class LogEventMapper<T> {
       Level level,
       @Nullable Marker marker,
       @Nullable Throwable throwable,
-      T contextData) {
+      T contextData,
+      String threadName,
+      long threadId) {
 
     AttributesBuilder attributes = Attributes.builder();
 
@@ -105,9 +111,8 @@ public final class LogEventMapper<T> {
     captureContextDataAttributes(attributes, contextData);
 
     if (captureExperimentalAttributes) {
-      Thread currentThread = Thread.currentThread();
-      attributes.put(SemanticAttributes.THREAD_NAME, currentThread.getName());
-      attributes.put(SemanticAttributes.THREAD_ID, currentThread.getId());
+      attributes.put(THREAD_NAME, threadName);
+      attributes.put(THREAD_ID, threadId);
     }
 
     builder.setAllAttributes(attributes.build());
@@ -175,8 +180,7 @@ public final class LogEventMapper<T> {
   }
 
   public static AttributeKey<String> getContextDataAttributeKey(String key) {
-    return contextDataAttributeKeyCache.computeIfAbsent(
-        key, k -> AttributeKey.stringKey("log4j.context_data." + k));
+    return contextDataAttributeKeyCache.computeIfAbsent(key, AttributeKey::stringKey);
   }
 
   public static AttributeKey<String> getMapMessageAttributeKey(String key) {
@@ -187,11 +191,11 @@ public final class LogEventMapper<T> {
   private static void setThrowable(AttributesBuilder attributes, Throwable throwable) {
     // TODO (trask) extract method for recording exception into
     // io.opentelemetry:opentelemetry-api
-    attributes.put(SemanticAttributes.EXCEPTION_TYPE, throwable.getClass().getName());
-    attributes.put(SemanticAttributes.EXCEPTION_MESSAGE, throwable.getMessage());
+    attributes.put(ExceptionAttributes.EXCEPTION_TYPE, throwable.getClass().getName());
+    attributes.put(ExceptionAttributes.EXCEPTION_MESSAGE, throwable.getMessage());
     StringWriter writer = new StringWriter();
     throwable.printStackTrace(new PrintWriter(writer));
-    attributes.put(SemanticAttributes.EXCEPTION_STACKTRACE, writer.toString());
+    attributes.put(ExceptionAttributes.EXCEPTION_STACKTRACE, writer.toString());
   }
 
   private static Severity levelToSeverity(Level level) {

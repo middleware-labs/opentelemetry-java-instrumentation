@@ -32,7 +32,7 @@ public class PyroscopeProfile {
   public static void startProfiling() {
     try {
       String tenantId = authenticateAndGetTenantId();
-      if (tenantId != null) {
+      if (tenantId != null && EnvironmentConfig.MW_APM_COLLECT_PROFILING) {
         String profilingServerUrl = EnvironmentConfig.MW_PROFILING_SERVER_URL;
         if (profilingServerUrl == null) {
           profilingServerUrl = "https://" + tenantId + ".middleware.io/profiling";
@@ -46,6 +46,8 @@ public class PyroscopeProfile {
                 .setServerAddress(profilingServerUrl)
                 .setTenantID(tenantId)
                 .build());
+      } else if (!EnvironmentConfig.MW_APM_COLLECT_PROFILING) {
+        logger.warning("Profiling is not initiated as MW_APM_COLLECT_PROFILE is disabled");
       } else {
         logger.warning("Profiling is not initiated as authentication is failed");
       }

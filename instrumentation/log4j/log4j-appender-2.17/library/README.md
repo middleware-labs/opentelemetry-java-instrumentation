@@ -37,7 +37,7 @@ The following demonstrates how you might configure the appender in your `log4j.x
 
 ```xml
 <?xml version="1.0" encoding="UTF-8"?>
-<Configuration status="WARN" packages="io.opentelemetry.instrumentation.log4j.appender.v2_17">
+<Configuration status="WARN">
   <Appenders>
     <Console name="Console" target="SYSTEM_OUT">
       <PatternLayout
@@ -56,3 +56,47 @@ The following demonstrates how you might configure the appender in your `log4j.x
 
 In this example Log4j2 log events will be sent to both the console appender and
 the `OpenTelemetryAppender`.
+
+In order to function, `OpenTelemetryAppender` needs access to an `OpenTelemetry` instance. This must
+be set programmatically during application startup as follows:
+
+```java
+import io.opentelemetry.instrumentation.log4j.appender.v2_17.OpenTelemetryAppender;
+import io.opentelemetry.sdk.OpenTelemetrySdk;
+
+public class Application {
+
+  public static void main(String[] args) {
+    OpenTelemetrySdk openTelemetrySdk = // Configure OpenTelemetrySdk
+
+    // Find OpenTelemetryAppender in log4j configuration and install openTelemetrySdk
+    OpenTelemetryAppender.install(openTelemetrySdk);
+
+    // ... proceed with application
+  }
+}
+```
+
+#### Settings for the Log4j Appender
+
+Setting can be configured as XML attributes, for example:
+
+```xml
+<Appenders>
+  <OpenTelemetry name="OpenTelemetryAppender"
+      captureMapMessageAttributes="true"
+      captureMarkerAttribute="true"
+      captureContextDataAttributes="*"
+  />
+</Appenders>
+```
+
+The available settings are:
+
+| XML Attribute                      | Type    | Default | Description                                                                                                                                                                                                |
+|------------------------------------|---------|---------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `captureExperimentalAttributes`    | Boolean | `false` | Enable the capture of experimental log attributes `thread.name` and `thread.id`.                                                                                                                           |
+| `captureMapMessageAttributes`      | Boolean | `false` | Enable the capture of `MapMessage` attributes.                                                                                                                                                             |
+| `captureMarkerAttribute`           | Boolean | `false` | Enable the capture of Log4j markers as attributes.                                                                                                                                                         |
+| `captureContextDataAttributes`     | String  |         | Comma separated list of context data attributes to capture. Use the wildcard character `*` to capture all attributes.                                                                                      |
+| `numLogsCapturedBeforeOtelInstall` | Integer | 1000    | Log telemetry is emitted after the initialization of the OpenTelemetry Log4j appender with an OpenTelemetry object. This setting allows you to modify the size of the cache used to replay the first logs. |

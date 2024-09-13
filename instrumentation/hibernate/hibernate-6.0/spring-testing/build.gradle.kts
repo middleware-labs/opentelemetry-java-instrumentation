@@ -18,6 +18,8 @@ dependencies {
   testImplementation("org.springframework.data:spring-data-jpa:3.0.0")
 
   springAgent("org.springframework:spring-instrument:6.0.7")
+
+  latestDepTestLibrary("org.hibernate:hibernate-core:6.2.+")
 }
 
 otelJava {
@@ -29,4 +31,6 @@ tasks.withType<Test>().configureEach {
 
   // TODO run tests both with and without experimental span attributes
   jvmArgs("-Dotel.instrumentation.hibernate.experimental-span-attributes=true")
+
+  jvmArgs("-Dotel.instrumentation.common.experimental.controller-telemetry.enabled=true")
 }

@@ -5,7 +5,7 @@
 
 package io.opentelemetry.javaagent.instrumentation.liberty.dispatcher;
 
-import io.opentelemetry.instrumentation.api.instrumenter.http.HttpServerAttributesGetter;
+import io.opentelemetry.instrumentation.api.semconv.http.HttpServerAttributesGetter;
 import java.util.List;
 import javax.annotation.Nullable;
 
@@ -52,5 +52,50 @@ public class LibertyDispatcherHttpAttributesGetter
   @Override
   public String getUrlQuery(LibertyRequest request) {
     return request.getQueryString();
+  }
+
+  @Nullable
+  @Override
+  public String getNetworkProtocolName(
+      LibertyRequest request, @Nullable LibertyResponse libertyResponse) {
+    String protocol = request.getProtocol();
+    if (protocol != null && protocol.startsWith("HTTP/")) {
+      return "http";
+    }
+    return null;
+  }
+
+  @Nullable
+  @Override
+  public String getNetworkProtocolVersion(
+      LibertyRequest request, @Nullable LibertyResponse libertyResponse) {
+    String protocol = request.getProtocol();
+    if (protocol != null && protocol.startsWith("HTTP/")) {
+      return protocol.substring("HTTP/".length());
+    }
+    return null;
+  }
+
+  @Override
+  @Nullable
+  public String getNetworkPeerAddress(LibertyRequest request, @Nullable LibertyResponse response) {
+    return request.getClientSocketAddress();
+  }
+
+  @Override
+  public Integer getNetworkPeerPort(LibertyRequest request, @Nullable LibertyResponse response) {
+    return request.getClientSocketPort();
+  }
+
+  @Nullable
+  @Override
+  public String getNetworkLocalAddress(LibertyRequest request, @Nullable LibertyResponse response) {
+    return request.getServerSocketAddress();
+  }
+
+  @Nullable
+  @Override
+  public Integer getNetworkLocalPort(LibertyRequest request, @Nullable LibertyResponse response) {
+    return request.getServerSocketPort();
   }
 }

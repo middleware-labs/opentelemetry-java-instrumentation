@@ -19,6 +19,7 @@ import grails.boot.GrailsApp;
 import grails.boot.config.GrailsAutoConfiguration;
 import io.opentelemetry.api.common.Attributes;
 import io.opentelemetry.api.trace.SpanKind;
+import io.opentelemetry.instrumentation.api.internal.HttpConstants;
 import io.opentelemetry.instrumentation.testing.junit.InstrumentationExtension;
 import io.opentelemetry.instrumentation.testing.junit.http.AbstractHttpServerTest;
 import io.opentelemetry.instrumentation.testing.junit.http.HttpServerInstrumentationExtension;
@@ -34,13 +35,14 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.function.Consumer;
-import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.extension.RegisterExtension;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.autoconfigure.web.ServerProperties;
 import org.springframework.context.ConfigurableApplicationContext;
 
 public class GrailsTest extends AbstractHttpServerTest<ConfigurableApplicationContext> {
+
+  static final boolean testLatestDeps = Boolean.getBoolean("testLatestDeps");
 
   @RegisterExtension
   static final InstrumentationExtension testing = HttpServerInstrumentationExtension.forAgent();
@@ -64,6 +66,7 @@ public class GrailsTest extends AbstractHttpServerTest<ConfigurableApplicationCo
     options.setHasErrorPageSpans(
         endpoint -> endpoint == ERROR || endpoint == EXCEPTION || endpoint == NOT_FOUND);
     options.setTestPathParam(true);
+    options.setResponseCodeOnNonStandardHttpMethod(testLatestDeps ? 200 : 501);
   }
 
   @SpringBootApplication
@@ -106,7 +109,12 @@ public class GrailsTest extends AbstractHttpServerTest<ConfigurableApplicationCo
   }
 
   @Override
-  public String expectedHttpRoute(ServerEndpoint endpoint) {
+  public String expectedHttpRoute(ServerEndpoint endpoint, String method) {
+    if (HttpConstants._OTHER.equals(method)) {
+      return testLatestDeps
+          ? getContextPath() + "/test" + endpoint.getPath()
+          : getContextPath() + "/*";
+    }
     if (PATH_PARAM.equals(endpoint)) {
       return getContextPath() + "/test/path";
     } else if (QUERY_PARAM.equals(endpoint)) {
@@ -174,8 +182,7 @@ public class GrailsTest extends AbstractHttpServerTest<ConfigurableApplicationCo
     if (endpoint == NOT_FOUND) {
       spanAssertions.add(
           span ->
-              span.satisfies(
-                      spanData -> Assertions.assertThat(spanData.getName()).endsWith(".sendError"))
+              span.satisfies(spanData -> assertThat(spanData.getName()).endsWith(".sendError"))
                   .hasKind(SpanKind.INTERNAL)
                   .hasAttributesSatisfying(Attributes::isEmpty));
     }

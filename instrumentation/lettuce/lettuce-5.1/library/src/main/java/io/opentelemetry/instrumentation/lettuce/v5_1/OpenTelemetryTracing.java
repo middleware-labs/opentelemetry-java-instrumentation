@@ -10,12 +10,14 @@ import static io.opentelemetry.instrumentation.lettuce.common.LettuceArgSplitter
 import com.google.errorprone.annotations.CanIgnoreReturnValue;
 import io.lettuce.core.output.CommandOutput;
 import io.lettuce.core.protocol.CompleteableCommand;
+import io.lettuce.core.protocol.OtelCommandArgsUtil;
 import io.lettuce.core.protocol.RedisCommand;
 import io.lettuce.core.tracing.TraceContext;
 import io.lettuce.core.tracing.TraceContextProvider;
 import io.lettuce.core.tracing.Tracer;
 import io.lettuce.core.tracing.TracerProvider;
 import io.lettuce.core.tracing.Tracing;
+import io.opentelemetry.api.common.AttributeKey;
 import io.opentelemetry.api.common.Attributes;
 import io.opentelemetry.api.common.AttributesBuilder;
 import io.opentelemetry.api.trace.Span;
@@ -23,11 +25,10 @@ import io.opentelemetry.api.trace.SpanBuilder;
 import io.opentelemetry.api.trace.SpanKind;
 import io.opentelemetry.api.trace.StatusCode;
 import io.opentelemetry.context.Context;
-import io.opentelemetry.instrumentation.api.db.RedisCommandSanitizer;
+import io.opentelemetry.instrumentation.api.incubator.semconv.db.RedisCommandSanitizer;
 import io.opentelemetry.instrumentation.api.instrumenter.AttributesExtractor;
-import io.opentelemetry.instrumentation.api.instrumenter.net.NetClientAttributesExtractor;
-import io.opentelemetry.semconv.trace.attributes.SemanticAttributes;
-import io.opentelemetry.semconv.trace.attributes.SemanticAttributes.DbSystemValues;
+import io.opentelemetry.instrumentation.api.semconv.network.NetworkAttributesExtractor;
+import io.opentelemetry.instrumentation.api.semconv.network.ServerAttributesExtractor;
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
 import java.time.Instant;
@@ -37,8 +38,16 @@ import javax.annotation.Nullable;
 
 final class OpenTelemetryTracing implements Tracing {
 
-  private static final AttributesExtractor<OpenTelemetryEndpoint, Void> netAttributesExtractor =
-      NetClientAttributesExtractor.create(new LettuceNetAttributesGetter());
+  // copied from DbIncubatingAttributes
+  private static final AttributeKey<String> DB_SYSTEM = AttributeKey.stringKey("db.system");
+  private static final AttributeKey<String> DB_STATEMENT = AttributeKey.stringKey("db.statement");
+  // copied from DbIncubatingAttributes.DbSystemValues
+  private static final String REDIS = "redis";
+
+  private static final AttributesExtractor<OpenTelemetryEndpoint, Void> serverAttributesExtractor =
+      ServerAttributesExtractor.create(new LettuceServerAttributesGetter());
+  private static final AttributesExtractor<OpenTelemetryEndpoint, Void> networkAttributesExtractor =
+      NetworkAttributesExtractor.create(new LettuceServerAttributesGetter());
   private final TracerProvider tracerProvider;
 
   OpenTelemetryTracing(io.opentelemetry.api.trace.Tracer tracer, RedisCommandSanitizer sanitizer) {
@@ -151,7 +160,7 @@ final class OpenTelemetryTracing implements Tracing {
               .spanBuilder("redis")
               .setSpanKind(SpanKind.CLIENT)
               .setParent(context)
-              .setAttribute(SemanticAttributes.DB_SYSTEM, DbSystemValues.REDIS);
+              .setAttribute(DB_SYSTEM, REDIS);
       return new OpenTelemetrySpan(context, spanBuilder, sanitizer);
     }
   }
@@ -170,7 +179,8 @@ final class OpenTelemetryTracing implements Tracing {
     @Nullable private List<Object> events;
     @Nullable private Throwable error;
     @Nullable private Span span;
-    @Nullable private String args;
+    @Nullable private List<String> argsList;
+    @Nullable private String argsString;
 
     OpenTelemetrySpan(Context context, SpanBuilder spanBuilder, RedisCommandSanitizer sanitizer) {
       this.context = context;
@@ -202,7 +212,8 @@ final class OpenTelemetryTracing implements Tracing {
     private void fillEndpoint(OpenTelemetryEndpoint endpoint) {
       AttributesBuilder attributesBuilder = Attributes.builder();
       Context currentContext = span == null ? context : context.with(span);
-      netAttributesExtractor.onEnd(attributesBuilder, currentContext, endpoint, null, null);
+      serverAttributesExtractor.onStart(attributesBuilder, currentContext, endpoint);
+      networkAttributesExtractor.onEnd(attributesBuilder, currentContext, endpoint, null, null);
       if (span != null) {
         span.setAllAttributes(attributesBuilder.build());
       } else {
@@ -224,7 +235,7 @@ final class OpenTelemetryTracing implements Tracing {
       span.updateName(command.getType().name());
 
       if (command.getArgs() != null) {
-        args = command.getArgs().toCommandString();
+        argsList = OtelCommandArgsUtil.getCommandArgs(command.getArgs());
       }
 
       if (command instanceof CompleteableCommand) {
@@ -294,7 +305,7 @@ final class OpenTelemetryTracing implements Tracing {
     @CanIgnoreReturnValue
     public synchronized Tracer.Span tag(String key, String value) {
       if (key.equals("redis.args")) {
-        args = value;
+        argsString = value;
         return this;
       }
       if (span != null) {
@@ -325,8 +336,9 @@ final class OpenTelemetryTracing implements Tracing {
 
     private void finish(Span span) {
       if (name != null) {
-        String statement = sanitizer.sanitize(name, splitArgs(args));
-        span.setAttribute(SemanticAttributes.DB_STATEMENT, statement);
+        String statement =
+            sanitizer.sanitize(name, argsList != null ? argsList : splitArgs(argsString));
+        span.setAttribute(DB_STATEMENT, statement);
       }
       span.end();
     }

@@ -9,9 +9,10 @@ import static java.util.Collections.emptyList;
 
 import io.opentelemetry.api.GlobalOpenTelemetry;
 import io.opentelemetry.api.logs.LogRecordBuilder;
+import io.opentelemetry.instrumentation.api.incubator.config.internal.InstrumentationConfig;
 import io.opentelemetry.instrumentation.log4j.appender.v2_17.internal.ContextDataAccessor;
 import io.opentelemetry.instrumentation.log4j.appender.v2_17.internal.LogEventMapper;
-import io.opentelemetry.javaagent.bootstrap.internal.InstrumentationConfig;
+import io.opentelemetry.javaagent.bootstrap.internal.AgentInstrumentationConfig;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
@@ -27,10 +28,12 @@ public final class Log4jHelper {
 
   private static final LogEventMapper<Map<String, String>> mapper;
 
-  static {
-    InstrumentationConfig config = InstrumentationConfig.get();
+  private static final boolean captureExperimentalAttributes;
 
-    boolean captureExperimentalAttributes =
+  static {
+    InstrumentationConfig config = AgentInstrumentationConfig.get();
+
+    captureExperimentalAttributes =
         config.getBoolean("otel.instrumentation.log4j-appender.experimental-log-attributes", false);
     boolean captureMapMessageAttributes =
         config.getBoolean(
@@ -41,8 +44,7 @@ public final class Log4jHelper {
             "otel.instrumentation.log4j-appender.experimental.capture-marker-attribute", false);
     List<String> captureContextDataAttributes =
         config.getList(
-            "otel.instrumentation.log4j-appender.experimental.capture-context-data-attributes",
-            emptyList());
+            "otel.instrumentation.log4j-appender.experimental.capture-mdc-attributes", emptyList());
 
     mapper =
         new LogEventMapper<>(
@@ -66,7 +68,16 @@ public final class Log4jHelper {
             .build()
             .logRecordBuilder();
     Map<String, String> contextData = ThreadContext.getImmutableContext();
-    mapper.mapLogEvent(builder, message, level, marker, throwable, contextData);
+
+    String threadName = null;
+    long threadId = -1;
+    if (captureExperimentalAttributes) {
+      Thread currentThread = Thread.currentThread();
+      threadName = currentThread.getName();
+      threadId = currentThread.getId();
+    }
+    mapper.mapLogEvent(
+        builder, message, level, marker, throwable, contextData, threadName, threadId);
     builder.setTimestamp(Instant.now());
     builder.emit();
   }
