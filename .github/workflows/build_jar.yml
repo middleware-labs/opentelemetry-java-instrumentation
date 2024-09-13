@@ -1,20 +1,20 @@
 name: Build JAR
 
 on:
-  workflow_dispatch:  
+  workflow_dispatch:  # Allows manual triggering
   push:
     branches:
-      - 'build-test'  
+      - 'build-test'  # Replace with your desired branch name
 
 jobs:
   build_jar:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
       - name: Set up JDK
-        uses: actions/setup-java@v2
+        uses: actions/setup-java@v3
         with:
           java-version: '17'
           distribution: 'adopt'
@@ -25,7 +25,7 @@ jobs:
           ./gradlew build
 
       - name: Upload JAR as artifact
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
         with:
           name: middleware-javaagent
           path: examples/extension/build/libs/middleware-javaagent.jar
