@@ -5,6 +5,7 @@
 
 package com.example.javaagent;
 
+import com.example.healthcheck.HealthCheck;
 import com.example.javaagent.config.EnvironmentConfig;
 import com.example.profile.PyroscopeProfile;
 import com.google.auto.service.AutoService;
@@ -35,6 +36,11 @@ public class DemoAutoConfigurationCustomizerProvider
 
   @Override
   public void customize(AutoConfigurationCustomizer autoConfiguration) {
+
+    HealthCheck check = new HealthCheck();
+    boolean isHealthy = check.isHealthy();
+    check.logHealthCheckResult(isHealthy);
+
     PyroscopeProfile.startProfiling();
     autoConfiguration
         .addLoggerProviderCustomizer(this::configureSdkLoggerProvider)
