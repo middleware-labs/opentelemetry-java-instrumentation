@@ -22,7 +22,9 @@ import io.opentelemetry.sdk.logs.export.LogRecordExporter;
 import io.opentelemetry.sdk.logs.export.SimpleLogRecordProcessor;
 import io.opentelemetry.sdk.metrics.SdkMeterProviderBuilder;
 import io.opentelemetry.sdk.resources.Resource;
+import io.opentelemetry.sdk.trace.SdkTracerProvider;
 import io.opentelemetry.sdk.trace.SdkTracerProviderBuilder;
+import io.opentelemetry.sdk.trace.samplers.Sampler;
 import java.lang.reflect.Field;
 import java.util.Collection;
 import java.util.HashMap;
@@ -55,6 +57,7 @@ public class DemoAutoConfigurationCustomizerProvider
     autoConfiguration
         .addLoggerProviderCustomizer(this::configureSdkLoggerProvider)
         .addMeterProviderCustomizer(this::configureSdkMeterProvider)
+        .addTracerProviderCustomizer(this::configureSdkTraceProvider)
         .addPropertiesSupplier(this::getDefaultProperties);
   }
 
@@ -112,7 +115,13 @@ public class DemoAutoConfigurationCustomizerProvider
   private SdkTracerProviderBuilder configureSdkTraceProvider(
       SdkTracerProviderBuilder tracerProvider, ConfigProperties config) {
     if (!EnvironmentConfig.MW_APM_COLLECT_TRACES) {
-      return tracerProvider.setResource(Resource.empty());
+      LOGGER.warning("Otel tracing is disabled");
+      // Return a builder that will create a TracerProvider with no samplers and a no-op span
+      // processor
+      // Return a builder that will create a TracerProvider with no samplers and no span processors
+      return SdkTracerProvider.builder()
+          .setResource(Resource.empty())
+          .setSampler(Sampler.alwaysOff());
     }
     return tracerProvider;
   }
