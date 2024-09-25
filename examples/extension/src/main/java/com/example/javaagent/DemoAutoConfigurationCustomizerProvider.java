@@ -14,19 +14,27 @@ import io.opentelemetry.api.common.Attributes;
 import io.opentelemetry.sdk.autoconfigure.spi.AutoConfigurationCustomizer;
 import io.opentelemetry.sdk.autoconfigure.spi.AutoConfigurationCustomizerProvider;
 import io.opentelemetry.sdk.autoconfigure.spi.ConfigProperties;
+import io.opentelemetry.sdk.common.CompletableResultCode;
+import io.opentelemetry.sdk.logs.SdkLoggerProvider;
 import io.opentelemetry.sdk.logs.SdkLoggerProviderBuilder;
+import io.opentelemetry.sdk.logs.data.LogRecordData;
+import io.opentelemetry.sdk.logs.export.LogRecordExporter;
+import io.opentelemetry.sdk.logs.export.SimpleLogRecordProcessor;
 import io.opentelemetry.sdk.metrics.SdkMeterProviderBuilder;
 import io.opentelemetry.sdk.resources.Resource;
+import io.opentelemetry.sdk.trace.SdkTracerProviderBuilder;
 import java.lang.reflect.Field;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.logging.Logger;
 
 /**
  * This is one of the main entry points for Instrumentation Agent's customizations. It allows
  * configuring the {@link AutoConfigurationCustomizer}. See the {@link
  * #customize(AutoConfigurationCustomizer)} method below.
  *
- * <p>Also see https://github.com/open-telemetry/opentelemetry-java/issues/2022
+ * <p>Also see <a href="https://github.com/open-telemetry/opentelemetry-java/issues/2022">...</a>
  *
  * @see AutoConfigurationCustomizerProvider
  */
@@ -34,13 +42,15 @@ import java.util.Map;
 public class DemoAutoConfigurationCustomizerProvider
     implements AutoConfigurationCustomizerProvider {
 
+  private static final Logger LOGGER =
+      Logger.getLogger(DemoAutoConfigurationCustomizerProvider.class.getName());
+
   @Override
   public void customize(AutoConfigurationCustomizer autoConfiguration) {
 
     HealthCheck check = new HealthCheck();
     boolean isHealthy = check.isHealthy();
     check.logHealthCheckResult(isHealthy);
-
     PyroscopeProfile.startProfiling();
     autoConfiguration
         .addLoggerProviderCustomizer(this::configureSdkLoggerProvider)
@@ -51,6 +61,9 @@ public class DemoAutoConfigurationCustomizerProvider
   private SdkMeterProviderBuilder configureSdkMeterProvider(
       SdkMeterProviderBuilder meterProvider, ConfigProperties config) {
     try {
+      if (!EnvironmentConfig.MW_APM_COLLECT_METRICS) {
+        return meterProvider.setResource(Resource.empty());
+      }
       Field resourceField = meterProvider.getClass().getDeclaredField("resource");
       resourceField.setAccessible(true);
       Resource resource = (Resource) resourceField.get(meterProvider);
@@ -69,7 +82,39 @@ public class DemoAutoConfigurationCustomizerProvider
   private SdkLoggerProviderBuilder configureSdkLoggerProvider(
       SdkLoggerProviderBuilder loggerProvider, ConfigProperties config) {
 
+    if (!EnvironmentConfig.MW_APM_COLLECT_LOGS) {
+      LOGGER.warning("Otel logging is disabled");
+      // Return a builder that will create a LoggerProvider with no processors
+      return SdkLoggerProvider.builder()
+          .setResource(Resource.empty())
+          .addLogRecordProcessor(
+              SimpleLogRecordProcessor.create(
+                  new LogRecordExporter() {
+                    @Override
+                    public CompletableResultCode export(Collection<LogRecordData> logs) {
+                      return CompletableResultCode.ofSuccess();
+                    }
+
+                    @Override
+                    public CompletableResultCode flush() {
+                      return CompletableResultCode.ofSuccess();
+                    }
+
+                    @Override
+                    public CompletableResultCode shutdown() {
+                      return CompletableResultCode.ofSuccess();
+                    }
+                  }));
+    }
     return loggerProvider.addLogRecordProcessor(DemoLogRecordProcessor.getInstance());
+  }
+
+  private SdkTracerProviderBuilder configureSdkTraceProvider(
+      SdkTracerProviderBuilder tracerProvider, ConfigProperties config) {
+    if (!EnvironmentConfig.MW_APM_COLLECT_TRACES) {
+      return tracerProvider.setResource(Resource.empty());
+    }
+    return tracerProvider;
   }
 
   private Map<String, String> getDefaultProperties() {

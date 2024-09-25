@@ -29,5 +29,21 @@ public class EnvironmentConfig {
       Arrays.asList("true", "1", "t", "y", "yes")
           .contains(System.getenv().getOrDefault("MW_APM_COLLECT_PROFILING", "True").toLowerCase());
 
+  public static final boolean MW_APM_COLLECT_TRACES =
+      Arrays.asList("true", "1", "t", "y", "yes")
+          .contains(System.getenv().getOrDefault("MW_APM_COLLECT_TRACES", "True").toLowerCase());
+
+  public static final boolean MW_APM_COLLECT_LOGS =
+      Arrays.asList("true", "1", "t", "y", "yes")
+          .contains(System.getenv().getOrDefault("MW_APM_COLLECT_LOGS", "True").toLowerCase());
+
+  public static final boolean MW_APM_COLLECT_METRICS =
+      Arrays.asList("true", "1", "t", "y", "yes")
+          .contains(System.getenv().getOrDefault("MW_APM_COLLECT_METRICS", "True").toLowerCase());
+
+  public static final boolean MW_DISABLE_TELEMETRY =
+      Arrays.asList("true", "1", "t", "y", "yes")
+          .contains(System.getenv().getOrDefault("MW_DISABLE_TELEMETRY", "True").toLowerCase());
+
   public static final String MW_API_KEY = System.getenv().getOrDefault("MW_API_KEY", null);
 }

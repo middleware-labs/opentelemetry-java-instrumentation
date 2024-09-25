@@ -69,8 +69,10 @@ public class HealthCheck {
     if (isHealthy) {
       LOGGER.info("Health check passed. Proceeding with instrumentation.");
     } else {
-      LOGGER.log(Level.WARNING, "MW Agent Healthcheck is failing ... This could be due to incorrect value of MW_AGENT_SERVICE\n"
-          + "Ignore the warning if you are using MW Agent older than 1.7.7 (You can confirm by running `mw-agent version`)");
+      LOGGER.log(
+          Level.WARNING,
+          "MW Agent Healthcheck is failing ... This could be due to incorrect value of MW_AGENT_SERVICE\n"
+              + "Ignore the warning if you are using MW Agent older than 1.7.7 (You can confirm by running `mw-agent version`)");
     }
   }
 }
