@@ -11,6 +11,7 @@ import com.example.profile.PyroscopeProfile;
 import com.google.auto.service.AutoService;
 import io.opentelemetry.api.common.AttributeKey;
 import io.opentelemetry.api.common.Attributes;
+import io.opentelemetry.api.common.AttributesBuilder;
 import io.opentelemetry.sdk.autoconfigure.spi.AutoConfigurationCustomizer;
 import io.opentelemetry.sdk.autoconfigure.spi.AutoConfigurationCustomizerProvider;
 import io.opentelemetry.sdk.autoconfigure.spi.ConfigProperties;
@@ -70,16 +71,41 @@ public class DemoAutoConfigurationCustomizerProvider
       Field resourceField = meterProvider.getClass().getDeclaredField("resource");
       resourceField.setAccessible(true);
       Resource resource = (Resource) resourceField.get(meterProvider);
-      meterProvider.setResource(
-          resource.merge(
-              Resource.create(
-                  Attributes.of(
-                      AttributeKey.stringKey("runtime.metrics.java"), "true",
-                      AttributeKey.stringKey("mw.app.lang"), "java"))));
+
+      // Parse OTEL_RESOURCE_ATTRIBUTES
+      Attributes otelAttributes =
+          parseResourceAttributes(System.getenv("OTEL_RESOURCE_ATTRIBUTES"));
+
+      // Parse MW_CUSTOM_RESOURCE_ATTRIBUTE
+      Attributes mwAttributes =
+          parseResourceAttributes(EnvironmentConfig.MW_CUSTOM_RESOURCE_ATTRIBUTE);
+
+      // Merge attributes, giving priority to OTEL_RESOURCE_ATTRIBUTES
+      AttributesBuilder mergedBuilder =
+          Attributes.builder().putAll(mwAttributes).putAll(otelAttributes);
+      mergedBuilder.put("runtime.metrics.java", "true");
+      mergedBuilder.put("mw.app.lang", "java");
+      Attributes mergedAttributes = mergedBuilder.build();
+
+      meterProvider.setResource(resource.merge(Resource.create(mergedAttributes)));
     } catch (Exception e) {
       throw new RuntimeException(e);
     }
     return meterProvider;
+  }
+
+  private Attributes parseResourceAttributes(String attributesString) {
+    AttributesBuilder builder = Attributes.builder();
+    if (attributesString != null && !attributesString.isEmpty()) {
+      String[] pairs = attributesString.split(",");
+      for (String pair : pairs) {
+        String[] keyValue = pair.split("=");
+        if (keyValue.length == 2) {
+          builder.put(AttributeKey.stringKey(keyValue[0].trim()), keyValue[1].trim());
+        }
+      }
+    }
+    return builder.build();
   }
 
   private SdkLoggerProviderBuilder configureSdkLoggerProvider(
@@ -127,15 +153,14 @@ public class DemoAutoConfigurationCustomizerProvider
   private Map<String, String> getDefaultProperties() {
     Map<String, String> properties = new HashMap<>();
 
-    String envConfigTarget = EnvironmentConfig.getEnvConfigValue(
-        "OTEL_EXPORTER_OTLP_ENDPOINT", "MW_TARGET"
-    );
+    String envConfigTarget =
+        EnvironmentConfig.getEnvConfigValue("OTEL_EXPORTER_OTLP_ENDPOINT", "MW_TARGET");
 
-    String envConfigPropogators = EnvironmentConfig.getEnvConfigValue(
-        "OTEL_PROPAGATORS", "MW_PROPOGATORS"
-    );
+    String envConfigPropogators =
+        EnvironmentConfig.getEnvConfigValue("OTEL_PROPAGATORS", "MW_PROPOGATORS");
 
-    if (EnvironmentConfig.MW_AGENT_SERVICE != null && !EnvironmentConfig.MW_AGENT_SERVICE.isEmpty()) {
+    if (EnvironmentConfig.MW_AGENT_SERVICE != null
+        && !EnvironmentConfig.MW_AGENT_SERVICE.isEmpty()) {
       properties.put(
           "otel.exporter.otlp.endpoint", "http://" + EnvironmentConfig.MW_AGENT_SERVICE + ":9319");
     } else if (envConfigTarget != null && !envConfigTarget.isEmpty()) {
@@ -149,7 +174,5 @@ public class DemoAutoConfigurationCustomizerProvider
     properties.put("otel.exporter.otlp.protocol", "grpc");
     properties.put("otel.instrumentation.runtime-telemetry-java17.enable-all", "true");
     return properties;
-
   }
-
 }
