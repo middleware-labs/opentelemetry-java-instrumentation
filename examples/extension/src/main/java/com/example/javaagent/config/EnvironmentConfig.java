@@ -45,5 +45,24 @@ public class EnvironmentConfig {
       Arrays.asList("true", "1", "t", "y", "yes")
           .contains(System.getenv().getOrDefault("MW_DISABLE_TELEMETRY", "True").toLowerCase());
 
+  public static final String MW_TARGET =
+    System.getenv().getOrDefault("MW_TARGET", "");
+
   public static final String MW_API_KEY = System.getenv().getOrDefault("MW_API_KEY", null);
+
+  public static final String MW_PROPAGATORS = System.getenv().getOrDefault("MW_PROPOGATORS", "b3");
+
+  public static String getEnvConfigValue(String otelKey, String mwKey) {
+   // THe otel env has higher priority
+   String otelValue = System.getenv(otelKey);
+   if (otelValue != null && !otelValue.isEmpty()) {
+     return otelValue;
+   }
+
+   String mwValue = System.getenv(mwKey);
+   if (mwValue != null && !mwValue.isEmpty()) {
+     return mwValue;
+   }
+   return null;
+  }
 }

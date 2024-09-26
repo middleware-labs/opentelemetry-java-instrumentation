@@ -116,8 +116,6 @@ public class DemoAutoConfigurationCustomizerProvider
       SdkTracerProviderBuilder tracerProvider, ConfigProperties config) {
     if (!EnvironmentConfig.MW_APM_COLLECT_TRACES) {
       LOGGER.warning("Otel tracing is disabled");
-      // Return a builder that will create a TracerProvider with no samplers and a no-op span
-      // processor
       // Return a builder that will create a TracerProvider with no samplers and no span processors
       return SdkTracerProvider.builder()
           .setResource(Resource.empty())
@@ -128,12 +126,30 @@ public class DemoAutoConfigurationCustomizerProvider
 
   private Map<String, String> getDefaultProperties() {
     Map<String, String> properties = new HashMap<>();
-    properties.put(
-        "otel.exporter.otlp.endpoint", "http://" + EnvironmentConfig.MW_AGENT_SERVICE + ":9319");
+
+    String envConfigTarget = EnvironmentConfig.getEnvConfigValue(
+        "OTEL_EXPORTER_OTLP_ENDPOINT", "MW_TARGET"
+    );
+
+    String envConfigPropogators = EnvironmentConfig.getEnvConfigValue(
+        "OTEL_PROPAGATORS", "MW_PROPOGATORS"
+    );
+
+    if (EnvironmentConfig.MW_AGENT_SERVICE != null && !EnvironmentConfig.MW_AGENT_SERVICE.isEmpty()) {
+      properties.put(
+          "otel.exporter.otlp.endpoint", "http://" + EnvironmentConfig.MW_AGENT_SERVICE + ":9319");
+    } else if (envConfigTarget != null && !envConfigTarget.isEmpty()) {
+      properties.put("otel.exporter.otlp.endpoint", envConfigTarget);
+    }
+
+    properties.put("otel.propagators", envConfigPropogators);
+
     properties.put("otel.metrics.exporter", "otlp");
     properties.put("otel.logs.exporter", "otlp");
     properties.put("otel.exporter.otlp.protocol", "grpc");
     properties.put("otel.instrumentation.runtime-telemetry-java17.enable-all", "true");
     return properties;
+
   }
+
 }
