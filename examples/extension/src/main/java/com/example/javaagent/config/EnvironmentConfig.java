@@ -54,6 +54,8 @@ public class EnvironmentConfig {
   public static final String MW_CUSTOM_RESOURCE_ATTRIBUTE =
       System.getenv("MW_CUSTOM_RESOURCE_ATTRIBUTE");
 
+  public static final String MW_LOG_LEVEL = System.getenv().getOrDefault("MW_LOG_LEVEL", null);
+
   public static String getEnvConfigValue(String otelKey, String mwKey) {
     // THe otel env has higher priority
     String otelValue = System.getenv(otelKey);

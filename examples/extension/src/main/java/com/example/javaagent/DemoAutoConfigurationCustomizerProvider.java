@@ -173,6 +173,25 @@ public class DemoAutoConfigurationCustomizerProvider
     properties.put("otel.logs.exporter", "otlp");
     properties.put("otel.exporter.otlp.protocol", "grpc");
     properties.put("otel.instrumentation.runtime-telemetry-java17.enable-all", "true");
+
+    String logLevel = getLogLevel();
+    if (logLevel != null) {
+      properties.put("otel.log.level", logLevel);
+    }
+
     return properties;
+  }
+
+  private String getLogLevel() {
+    String otelLogLevel = System.getenv("OTEL_LOG_LEVEL");
+    String mwLogLevel = EnvironmentConfig.MW_LOG_LEVEL;
+
+    if (otelLogLevel != null && !otelLogLevel.isEmpty()) {
+      return otelLogLevel;
+    } else if (mwLogLevel != null && !mwLogLevel.isEmpty()) {
+      return mwLogLevel;
+    }
+
+    return null;
   }
 }
