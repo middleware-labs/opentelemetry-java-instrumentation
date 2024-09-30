@@ -1,8 +1,3 @@
-/*
- * Copyright The OpenTelemetry Authors
- * SPDX-License-Identifier: Apache-2.0
- */
-
 package com.example.javaagent;
 
 import com.example.healthcheck.HealthCheck;
@@ -32,15 +27,6 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.logging.Logger;
 
-/**
- * This is one of the main entry points for Instrumentation Agent's customizations. It allows
- * configuring the {@link AutoConfigurationCustomizer}. See the {@link
- * #customize(AutoConfigurationCustomizer)} method below.
- *
- * <p>Also see <a href="https://github.com/open-telemetry/opentelemetry-java/issues/2022">...</a>
- *
- * @see AutoConfigurationCustomizerProvider
- */
 @AutoService(AutoConfigurationCustomizerProvider.class)
 public class DemoAutoConfigurationCustomizerProvider
     implements AutoConfigurationCustomizerProvider {
@@ -50,7 +36,6 @@ public class DemoAutoConfigurationCustomizerProvider
 
   @Override
   public void customize(AutoConfigurationCustomizer autoConfiguration) {
-
     HealthCheck check = new HealthCheck();
     boolean isHealthy = check.isHealthy();
     check.logHealthCheckResult(isHealthy);
@@ -65,7 +50,7 @@ public class DemoAutoConfigurationCustomizerProvider
   private SdkMeterProviderBuilder configureSdkMeterProvider(
       SdkMeterProviderBuilder meterProvider, ConfigProperties config) {
     try {
-      if (!EnvironmentConfig.MW_APM_COLLECT_METRICS) {
+      if (!EnvironmentConfig.isMwApmCollectMetrics()) {
         return meterProvider.setResource(Resource.empty());
       }
       Field resourceField = meterProvider.getClass().getDeclaredField("resource");
@@ -78,7 +63,7 @@ public class DemoAutoConfigurationCustomizerProvider
 
       // Parse MW_CUSTOM_RESOURCE_ATTRIBUTE
       Attributes mwAttributes =
-          parseResourceAttributes(EnvironmentConfig.MW_CUSTOM_RESOURCE_ATTRIBUTE);
+          parseResourceAttributes(EnvironmentConfig.getMwCustomResourceAttribute());
 
       // Merge attributes, giving priority to OTEL_RESOURCE_ATTRIBUTES
       AttributesBuilder mergedBuilder =
@@ -111,7 +96,7 @@ public class DemoAutoConfigurationCustomizerProvider
   private SdkLoggerProviderBuilder configureSdkLoggerProvider(
       SdkLoggerProviderBuilder loggerProvider, ConfigProperties config) {
 
-    if (!EnvironmentConfig.MW_APM_COLLECT_LOGS) {
+    if (!EnvironmentConfig.isMwApmCollectLogs()) {
       LOGGER.warning("Otel logging is disabled");
       // Return a builder that will create a LoggerProvider with no processors
       return SdkLoggerProvider.builder()
@@ -140,7 +125,7 @@ public class DemoAutoConfigurationCustomizerProvider
 
   private SdkTracerProviderBuilder configureSdkTraceProvider(
       SdkTracerProviderBuilder tracerProvider, ConfigProperties config) {
-    if (!EnvironmentConfig.MW_APM_COLLECT_TRACES) {
+    if (!EnvironmentConfig.isMwApmCollectTraces()) {
       LOGGER.warning("Otel tracing is disabled");
       // Return a builder that will create a TracerProvider with no samplers and no span processors
       return SdkTracerProvider.builder()
@@ -156,18 +141,18 @@ public class DemoAutoConfigurationCustomizerProvider
     String envConfigTarget =
         EnvironmentConfig.getEnvConfigValue("OTEL_EXPORTER_OTLP_ENDPOINT", "MW_TARGET");
 
-    String envConfigPropogators =
-        EnvironmentConfig.getEnvConfigValue("OTEL_PROPAGATORS", "MW_PROPOGATORS");
+    String envConfigPropagators =
+        EnvironmentConfig.getEnvConfigValue("OTEL_PROPAGATORS", "MW_PROPAGATORS");
 
-    if (EnvironmentConfig.MW_AGENT_SERVICE != null
-        && !EnvironmentConfig.MW_AGENT_SERVICE.isEmpty()) {
+    if (EnvironmentConfig.getMwAgentService() != null
+        && !EnvironmentConfig.getMwAgentService().isEmpty()) {
       properties.put(
-          "otel.exporter.otlp.endpoint", "http://" + EnvironmentConfig.MW_AGENT_SERVICE + ":9319");
+          "otel.exporter.otlp.endpoint", "http://" + EnvironmentConfig.getMwAgentService() + ":9319");
     } else if (envConfigTarget != null && !envConfigTarget.isEmpty()) {
       properties.put("otel.exporter.otlp.endpoint", envConfigTarget);
     }
 
-    properties.put("otel.propagators", envConfigPropogators);
+    properties.put("otel.propagators", envConfigPropagators);
 
     properties.put("otel.metrics.exporter", "otlp");
     properties.put("otel.logs.exporter", "otlp");
@@ -184,7 +169,7 @@ public class DemoAutoConfigurationCustomizerProvider
 
   private String getLogLevel() {
     String otelLogLevel = System.getenv("OTEL_LOG_LEVEL");
-    String mwLogLevel = EnvironmentConfig.MW_LOG_LEVEL;
+    String mwLogLevel = EnvironmentConfig.getMwLogLevel();
 
     if (otelLogLevel != null && !otelLogLevel.isEmpty()) {
       return otelLogLevel;
