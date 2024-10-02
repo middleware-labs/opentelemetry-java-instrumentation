@@ -32,8 +32,8 @@ public class PyroscopeProfile {
   public static void startProfiling() {
     try {
       String tenantId = authenticateAndGetTenantId();
-      if (tenantId != null && EnvironmentConfig.MW_APM_COLLECT_PROFILING) {
-        String profilingServerUrl = EnvironmentConfig.MW_PROFILING_SERVER_URL;
+      if (tenantId != null && EnvironmentConfig.isMwApmCollectProfiling()) {
+        String profilingServerUrl = EnvironmentConfig.getMwProfilingServerUrl();
         if (profilingServerUrl == null) {
           profilingServerUrl = "https://" + tenantId + ".middleware.io/profiling";
         }
@@ -41,12 +41,12 @@ public class PyroscopeProfile {
             new Config.Builder()
                 .setApplicationName(SystemProperties.SERVICE_NAME)
                 .setProfilingEvent(EventType.ITIMER)
-                .setProfilingAlloc(EnvironmentConfig.MW_PROFILING_ALLOC)
-                .setProfilingLock(EnvironmentConfig.MW_PROFILING_LOCK)
+                .setProfilingAlloc(EnvironmentConfig.getMwProfilingAlloc())
+                .setProfilingLock(EnvironmentConfig.getMwProfilingLock())
                 .setServerAddress(profilingServerUrl)
                 .setTenantID(tenantId)
                 .build());
-      } else if (!EnvironmentConfig.MW_APM_COLLECT_PROFILING) {
+      } else if (!EnvironmentConfig.isMwApmCollectProfiling()) {
         logger.warning("Profiling is not initiated as MW_APM_COLLECT_PROFILE is disabled");
       } else {
         logger.warning("Profiling is not initiated as authentication is failed");
@@ -65,7 +65,7 @@ public class PyroscopeProfile {
   private static String authenticateAndGetTenantId() {
     try {
       // Data validation
-      String mwApiKey = EnvironmentConfig.MW_API_KEY;
+      String mwApiKey = EnvironmentConfig.getMwApiKey();
       if (mwApiKey == null) {
         logger.warning(
             "Profiling is not initiated as environment variable MW_API_KEY is not provided");
@@ -73,7 +73,7 @@ public class PyroscopeProfile {
       }
 
       // Build Request
-      HttpPost authRequest = new HttpPost(URI.create(EnvironmentConfig.MW_AUTH_URL));
+      HttpPost authRequest = new HttpPost(URI.create(EnvironmentConfig.getMwAuthUrl()));
       authRequest.addHeader("Content-Type", "application/x-www-form-urlencoded");
       authRequest.addHeader("Authorization", "Bearer " + mwApiKey);
 

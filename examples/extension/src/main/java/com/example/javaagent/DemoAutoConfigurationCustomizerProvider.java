@@ -1,6 +1,12 @@
+/*
+ * Copyright The OpenTelemetry Authors
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 package com.example.javaagent;
 
 import com.example.healthcheck.HealthCheck;
+import com.example.javaagent.config.ConfigManager;
 import com.example.javaagent.config.EnvironmentConfig;
 import com.example.profile.PyroscopeProfile;
 import com.google.auto.service.AutoService;
@@ -23,7 +29,6 @@ import io.opentelemetry.sdk.trace.SdkTracerProviderBuilder;
 import io.opentelemetry.sdk.trace.samplers.Sampler;
 import java.lang.reflect.Field;
 import java.util.Collection;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.logging.Logger;
 
@@ -136,47 +141,8 @@ public class DemoAutoConfigurationCustomizerProvider
   }
 
   private Map<String, String> getDefaultProperties() {
-    Map<String, String> properties = new HashMap<>();
-
-    String envConfigTarget =
-        EnvironmentConfig.getEnvConfigValue("OTEL_EXPORTER_OTLP_ENDPOINT", "MW_TARGET");
-
-    String envConfigPropagators =
-        EnvironmentConfig.getEnvConfigValue("OTEL_PROPAGATORS", "MW_PROPAGATORS");
-
-    if (EnvironmentConfig.getMwAgentService() != null
-        && !EnvironmentConfig.getMwAgentService().isEmpty()) {
-      properties.put(
-          "otel.exporter.otlp.endpoint", "http://" + EnvironmentConfig.getMwAgentService() + ":9319");
-    } else if (envConfigTarget != null && !envConfigTarget.isEmpty()) {
-      properties.put("otel.exporter.otlp.endpoint", envConfigTarget);
-    }
-
-    properties.put("otel.propagators", envConfigPropagators);
-
-    properties.put("otel.metrics.exporter", "otlp");
-    properties.put("otel.logs.exporter", "otlp");
-    properties.put("otel.exporter.otlp.protocol", "grpc");
-    properties.put("otel.instrumentation.runtime-telemetry-java17.enable-all", "true");
-
-    String logLevel = getLogLevel();
-    if (logLevel != null) {
-      properties.put("otel.log.level", logLevel);
-    }
-
-    return properties;
-  }
-
-  private String getLogLevel() {
-    String otelLogLevel = System.getenv("OTEL_LOG_LEVEL");
-    String mwLogLevel = EnvironmentConfig.getMwLogLevel();
-
-    if (otelLogLevel != null && !otelLogLevel.isEmpty()) {
-      return otelLogLevel;
-    } else if (mwLogLevel != null && !mwLogLevel.isEmpty()) {
-      return mwLogLevel;
-    }
-
-    return null;
+    ConfigManager configManager = new ConfigManager();
+    LOGGER.info(configManager.getProperties().toString());
+    return configManager.getProperties();
   }
 }

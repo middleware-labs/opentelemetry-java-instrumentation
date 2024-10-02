@@ -40,7 +40,7 @@ public class HealthCheck {
   }
 
   private String buildHealthCheckUrl() {
-    String host = EnvironmentConfig.MW_AGENT_SERVICE;
+    String host = EnvironmentConfig.getMwAgentService();
     if (host == null || host.trim().isEmpty()) {
       host = DEFAULT_HOST;
     }

@@ -1,3 +1,8 @@
+/*
+ * Copyright The OpenTelemetry Authors
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
 package com.example.javaagent.config;
 
 import java.util.Map;
@@ -23,8 +28,8 @@ public class EnvironmentConfig {
     MW_API_KEY(null),
     MW_PROPAGATORS("b3"),
     MW_CUSTOM_RESOURCE_ATTRIBUTE(null),
-    MW_LOG_LEVEL(null);
-
+    MW_LOG_LEVEL(null),
+    MW_ENABLE_GZIP("true");
     private final String defaultValue;
 
     EnvVar(String defaultValue) {
@@ -86,6 +91,10 @@ public class EnvironmentConfig {
 
   public static boolean isMwApmCollectMetrics() {
     return getBoolean(EnvVar.MW_APM_COLLECT_METRICS);
+  }
+
+  public static boolean isMwGzipEnabled() {
+    return getBoolean(EnvVar.MW_ENABLE_GZIP);
   }
 
   public static boolean isMwDisableTelemetry() {
