@@ -34,7 +34,7 @@ public class ConfigManager {
     LOGGER.info("OTEL_EXPORTER_OTLP_ENDPOINT or MW_TARGET: " + envConfigTarget);
     LOGGER.info("MW_AGENT_SERVICE: " + mwAgentService);
 
-    String endpoint = null;
+    String endpoint;
 
     if (envConfigTarget != null && !envConfigTarget.isEmpty()) {
       endpoint = envConfigTarget;
@@ -43,16 +43,25 @@ public class ConfigManager {
         && !mwAgentService.equals("localhost")) {
       endpoint = "http://" + mwAgentService + ":9319";
     } else {
-      // Default to localhost if no other configuration is provided
-      endpoint = "http://localhost:9319";
+      endpoint = EnvironmentConfig.get(EnvironmentConfig.EnvVar.MW_TARGET);
+      if (endpoint == null || endpoint.isEmpty()) {
+        endpoint = "http://localhost:9319";
+      }
     }
-    LOGGER.info("Final endpoint configuration: " + properties.get("otel.exporter.otlp.endpoint"));
+
     properties.put("otel.exporter.otlp.endpoint", endpoint);
+    LOGGER.info("Final endpoint configuration: " + endpoint);
   }
 
   private void configurePropagators(Map<String, String> properties) {
     String envConfigPropagators =
         EnvironmentConfig.getEnvConfigValue("OTEL_PROPAGATORS", "MW_PROPAGATORS");
+
+    if (envConfigPropagators == null || envConfigPropagators.isEmpty()) {
+      envConfigPropagators = EnvironmentConfig.get(EnvironmentConfig.EnvVar.MW_PROPAGATORS);
+    }
+
+    LOGGER.info("PROPAGATORS: " + envConfigPropagators);
     properties.put("otel.propagators", envConfigPropagators);
   }
 
@@ -71,10 +80,14 @@ public class ConfigManager {
   }
 
   private void configureLogLevel(Map<String, String> properties) {
-    String logLevel = getLogLevel();
-    if (logLevel != null) {
+    String logLevel = EnvironmentConfig.getEnvConfigValue("OTEL_LOG_LEVEL", "MW_LOG_LEVEL");
+    if (logLevel == null || logLevel.isEmpty()) {
+      logLevel = EnvironmentConfig.get(EnvironmentConfig.EnvVar.MW_LOG_LEVEL);
+    }
+    if (logLevel != null && !logLevel.isEmpty()) {
       properties.put("otel.log.level", logLevel);
     }
+    LOGGER.info("Log level: " + logLevel);
   }
 
   private void configureAdditionalProperties(Map<String, String> properties) {
