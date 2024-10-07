@@ -30,11 +30,8 @@ public class ConfigManager {
         EnvironmentConfig.getEnvConfigValue("OTEL_EXPORTER_OTLP_ENDPOINT", "MW_TARGET");
     String mwAgentService = EnvironmentConfig.getMwAgentService();
 
-    LOGGER.info("MW_TARGET: " + EnvironmentConfig.getMwTarget());
-    LOGGER.info("OTEL_EXPORTER_OTLP_ENDPOINT or MW_TARGET: " + envConfigTarget);
-    LOGGER.info("MW_AGENT_SERVICE: " + mwAgentService);
 
-    String endpoint;
+    String endpoint="";
 
     if (envConfigTarget != null && !envConfigTarget.isEmpty()) {
       endpoint = envConfigTarget;
@@ -42,7 +39,7 @@ public class ConfigManager {
         && !mwAgentService.isEmpty()
         && !mwAgentService.equals("localhost")) {
       endpoint = "http://" + mwAgentService + ":9319";
-    } else {
+
       endpoint = EnvironmentConfig.get(EnvironmentConfig.EnvVar.MW_TARGET);
       if (endpoint == null || endpoint.isEmpty()) {
         endpoint = "http://localhost:9319";
@@ -50,7 +47,6 @@ public class ConfigManager {
     }
 
     properties.put("otel.exporter.otlp.endpoint", endpoint);
-    LOGGER.info("Final endpoint configuration: " + endpoint);
   }
 
   private void configurePropagators(Map<String, String> properties) {
@@ -61,7 +57,6 @@ public class ConfigManager {
       envConfigPropagators = EnvironmentConfig.get(EnvironmentConfig.EnvVar.MW_PROPAGATORS);
     }
 
-    LOGGER.info("PROPAGATORS: " + envConfigPropagators);
     properties.put("otel.propagators", envConfigPropagators);
   }
 
@@ -87,7 +82,6 @@ public class ConfigManager {
     if (logLevel != null && !logLevel.isEmpty()) {
       properties.put("otel.log.level", logLevel);
     }
-    LOGGER.info("Log level: " + logLevel);
   }
 
   private void configureAdditionalProperties(Map<String, String> properties) {

@@ -50,27 +50,15 @@ public class EnvironmentConfig {
 
   public static String getEnvConfigValue(String otelKey, String mwKey) {
     String otelValue = ENV.get(otelKey);
-    LOGGER.info("Otel value: " + otelValue);
     if (otelValue != null && !otelValue.isEmpty()) {
-      LOGGER.info("setting otelvalue");
       return otelValue;
     }
     String mwValue = ENV.get(mwKey);
-    LOGGER.info("MW value: " + mwValue);
     if (mwValue != null && !mwValue.isEmpty()) {
-      LOGGER.info("setting mwValue");
       return mwValue;
     }
     return null;
-    //    String otelValue = ENV.get(otelKey);
-    //    if (otelValue != null && !otelValue.isEmpty()) {
-    //      return otelValue;
-    //    }
-    //    String mwValue = ENV.get(mwKey);
-    //    if (mwValue != null && !mwValue.isEmpty()) {
-    //      return mwValue;
-    //    }
-    //    return null;
+
   }
 
   // Utility method to get environment variable with custom parsing
