@@ -52,6 +52,26 @@ public class DemoAutoConfigurationCustomizerProvider
         .addPropertiesSupplier(this::getDefaultProperties);
   }
 
+  private Resource createCommonResource() {
+    AttributesBuilder builder =
+        Attributes.builder()
+            .put("runtime.metrics.java", "true")
+            .put("mw.app.lang", "java")
+            .put("mw.account_key", EnvironmentConfig.getMwApiKey())
+            .put("service.name", EnvironmentConfig.getMwServiceName());
+
+    // Parse OTEL_RESOURCE_ATTRIBUTES
+    Attributes otelAttributes = parseResourceAttributes(System.getenv("OTEL_RESOURCE_ATTRIBUTES"));
+    builder.putAll(otelAttributes);
+
+    // Parse MW_CUSTOM_RESOURCE_ATTRIBUTE
+    Attributes mwAttributes =
+        parseResourceAttributes(EnvironmentConfig.getMwCustomResourceAttribute());
+    builder.putAll(mwAttributes);
+
+    return Resource.create(builder.build());
+  }
+
   private SdkMeterProviderBuilder configureSdkMeterProvider(
       SdkMeterProviderBuilder meterProvider, ConfigProperties config) {
     try {
@@ -62,22 +82,7 @@ public class DemoAutoConfigurationCustomizerProvider
       resourceField.setAccessible(true);
       Resource resource = (Resource) resourceField.get(meterProvider);
 
-      // Parse OTEL_RESOURCE_ATTRIBUTES
-      Attributes otelAttributes =
-          parseResourceAttributes(System.getenv("OTEL_RESOURCE_ATTRIBUTES"));
-
-      // Parse MW_CUSTOM_RESOURCE_ATTRIBUTE
-      Attributes mwAttributes =
-          parseResourceAttributes(EnvironmentConfig.getMwCustomResourceAttribute());
-
-      // Merge attributes, giving priority to OTEL_RESOURCE_ATTRIBUTES
-      AttributesBuilder mergedBuilder =
-          Attributes.builder().putAll(mwAttributes).putAll(otelAttributes);
-      mergedBuilder.put("runtime.metrics.java", "true");
-      mergedBuilder.put("mw.app.lang", "java");
-      Attributes mergedAttributes = mergedBuilder.build();
-
-      meterProvider.setResource(resource.merge(Resource.create(mergedAttributes)));
+      meterProvider.setResource(resource.merge(createCommonResource()));
     } catch (Exception e) {
       throw new RuntimeException(e);
     }
@@ -125,7 +130,9 @@ public class DemoAutoConfigurationCustomizerProvider
                     }
                   }));
     }
-    return loggerProvider.addLogRecordProcessor(DemoLogRecordProcessor.getInstance());
+    return loggerProvider
+        .setResource(createCommonResource())
+        .addLogRecordProcessor(DemoLogRecordProcessor.getInstance());
   }
 
   private SdkTracerProviderBuilder configureSdkTraceProvider(
@@ -137,7 +144,7 @@ public class DemoAutoConfigurationCustomizerProvider
           .setResource(Resource.empty())
           .setSampler(Sampler.alwaysOff());
     }
-    return tracerProvider;
+    return tracerProvider.setResource(createCommonResource());
   }
 
   private Map<String, String> getDefaultProperties() {

@@ -20,6 +20,7 @@ public class EnvironmentConfig {
     MW_PROFILING_ALLOC("512k"),
     MW_PROFILING_LOCK("10ms"),
     MW_AGENT_SERVICE("localhost"),
+    MW_SERVICE_NAME(""),
     MW_AUTH_URL("https://app.middleware.io/api/v1/auth"),
     MW_APM_COLLECT_PROFILING("true"),
     MW_APM_COLLECT_TRACES("true"),
@@ -31,7 +32,8 @@ public class EnvironmentConfig {
     MW_PROPAGATORS("b3"),
     MW_CUSTOM_RESOURCE_ATTRIBUTE(null),
     MW_LOG_LEVEL(null),
-    MW_ENABLE_GZIP("true");
+    MW_ENABLE_GZIP("true"),
+    MW_AGENT("true");
     private final String defaultValue;
 
     EnvVar(String defaultValue) {
@@ -58,7 +60,6 @@ public class EnvironmentConfig {
       return mwValue;
     }
     return null;
-
   }
 
   // Utility method to get environment variable with custom parsing
@@ -126,6 +127,14 @@ public class EnvironmentConfig {
 
   public static String getMwCustomResourceAttribute() {
     return get(EnvVar.MW_CUSTOM_RESOURCE_ATTRIBUTE);
+  }
+
+  public static String getMwServiceName() {
+    return get(EnvVar.MW_SERVICE_NAME);
+  }
+
+  public static boolean isMwAgentEnabled() {
+    return getBoolean(EnvVar.MW_AGENT);
   }
 
   public static String getMwLogLevel() {
