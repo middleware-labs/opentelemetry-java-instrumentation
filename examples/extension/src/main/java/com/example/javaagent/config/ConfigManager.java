@@ -47,7 +47,7 @@ public class ConfigManager {
     LOGGER.info("Endpoint target = " + endpoint);
     properties.put("otel.exporter.otlp.endpoint", endpoint);
   }
-    
+
   private void configurePropagators(Map<String, String> properties) {
     String envConfigPropagators =
         EnvironmentConfig.getEnvConfigValue("OTEL_PROPAGATORS", "MW_PROPAGATORS");
