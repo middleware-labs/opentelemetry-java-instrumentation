@@ -47,7 +47,7 @@ public class PyroscopeProfile {
                 .setTenantID(tenantId)
                 .build());
       } else if (!EnvironmentConfig.MW_APM_COLLECT_PROFILING) {
-        logger.warning("Profiling is not initiated as MW_APM_COLLECT_PROFILE is disabled");
+        logger.warning("Profiling is not initiated as  MW_APM_COLLECT_PROFILING is disabled");
       } else {
         logger.warning("Profiling is not initiated as authentication is failed");
       }
