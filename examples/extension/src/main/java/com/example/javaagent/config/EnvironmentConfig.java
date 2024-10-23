@@ -20,7 +20,7 @@ public class EnvironmentConfig {
     MW_PROFILING_ALLOC("512k"),
     MW_PROFILING_LOCK("10ms"),
     MW_AGENT_SERVICE("localhost"),
-    MW_SERVICE_NAME(""),
+    MW_SERVICE_NAME(SystemProperties.SERVICE_NAME),
     MW_AUTH_URL("https://app.middleware.io/api/v1/auth"),
     MW_APM_COLLECT_PROFILING("true"),
     MW_APM_COLLECT_TRACES("true"),
