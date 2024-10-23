@@ -32,8 +32,8 @@ public class PyroscopeProfile {
   public static void startProfiling() {
     try {
       String tenantId = authenticateAndGetTenantId();
-      if (tenantId != null && EnvironmentConfig.isMwApmCollectProfiling()) {
-        String profilingServerUrl = EnvironmentConfig.getMwProfilingServerUrl();
+      if (tenantId != null && EnvironmentConfig.MW_APM_COLLECT_PROFILING) {
+        String profilingServerUrl = EnvironmentConfig.MW_PROFILING_SERVER_URL;
         if (profilingServerUrl == null) {
           profilingServerUrl = "https://" + tenantId + ".middleware.io/profiling";
         }
@@ -41,13 +41,13 @@ public class PyroscopeProfile {
             new Config.Builder()
                 .setApplicationName(SystemProperties.SERVICE_NAME)
                 .setProfilingEvent(EventType.ITIMER)
-                .setProfilingAlloc(EnvironmentConfig.getMwProfilingAlloc())
-                .setProfilingLock(EnvironmentConfig.getMwProfilingLock())
+                .setProfilingAlloc(EnvironmentConfig.MW_PROFILING_ALLOC)
+                .setProfilingLock(EnvironmentConfig.MW_PROFILING_LOCK)
                 .setServerAddress(profilingServerUrl)
                 .setTenantID(tenantId)
                 .build());
-      } else if (!EnvironmentConfig.isMwApmCollectProfiling()) {
-        logger.warning("Profiling is not initiated as MW_APM_COLLECT_PROFILE is disabled");
+      } else if (!EnvironmentConfig.MW_APM_COLLECT_PROFILING) {
+        logger.warning("Profiling is not initiated as  MW_APM_COLLECT_PROFILING is disabled");
       } else {
         logger.warning("Profiling is not initiated as authentication is failed");
       }
@@ -65,7 +65,7 @@ public class PyroscopeProfile {
   private static String authenticateAndGetTenantId() {
     try {
       // Data validation
-      String mwApiKey = EnvironmentConfig.getMwApiKey();
+      String mwApiKey = EnvironmentConfig.MW_API_KEY;
       if (mwApiKey == null) {
         logger.warning(
             "Profiling is not initiated as environment variable MW_API_KEY is not provided");
@@ -73,7 +73,7 @@ public class PyroscopeProfile {
       }
 
       // Build Request
-      HttpPost authRequest = new HttpPost(URI.create(EnvironmentConfig.getMwAuthUrl()));
+      HttpPost authRequest = new HttpPost(URI.create(EnvironmentConfig.MW_AUTH_URL));
       authRequest.addHeader("Content-Type", "application/x-www-form-urlencoded");
       authRequest.addHeader("Authorization", "Bearer " + mwApiKey);
 
