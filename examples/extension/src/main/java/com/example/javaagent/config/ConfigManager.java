@@ -31,20 +31,20 @@ public class ConfigManager {
     String mwAgentService = EnvironmentConfig.getMwAgentService();
 
     String endpoint = "";
-
     if (envConfigTarget != null && !envConfigTarget.isEmpty()) {
       endpoint = envConfigTarget;
     } else if (mwAgentService != null
         && !mwAgentService.isEmpty()
         && !mwAgentService.equals("localhost")) {
       endpoint = "http://" + mwAgentService + ":9319";
-
+    } else {
+      // Fallback to environment config or default localhost
       endpoint = EnvironmentConfig.get(EnvironmentConfig.EnvVar.MW_TARGET);
       if (endpoint == null || endpoint.isEmpty()) {
         endpoint = "http://localhost:9319";
       }
     }
-    LOGGER.info("Endpoint target =  " + endpoint);
+    LOGGER.info("Endpoint target = " + endpoint);
     properties.put("otel.exporter.otlp.endpoint", endpoint);
   }
 
@@ -65,44 +65,6 @@ public class ConfigManager {
     properties.put("otel.exporter.otlp.protocol", "grpc");
   }
 
-  //  private void configureServerlessProperties(Map<String, String> properties) {
-  //
-  //    String envConfigTarget = EnvironmentConfig.getMwTarget();
-  //    boolean envConfigMwAgent = EnvironmentConfig.isMwAgentEnabled();
-  //    String mwApiKey = EnvironmentConfig.getMwApiKey();
-  //    if ((envConfigTarget != null && !envConfigTarget.isEmpty()) || envConfigMwAgent) {
-  //      Map<String, String> resourceAttributes = new HashMap<>();
-  //      resourceAttributes.put("mw.account_key", mwApiKey);
-  //      configureResourceAttributes(properties, resourceAttributes);
-  //    }
-  //  }
-
-  //  private void configureResourceAttributes(
-  //      Map<String, String> properties, Map<String, String> newAttributes) {
-  //    StringBuilder resourceAttributes = new StringBuilder();
-  //
-  //    // Add existing resource attributes if any
-  //    String existingAttributes = properties.get("otel.resource.attributes");
-  //    if (existingAttributes != null && !existingAttributes.isEmpty()) {
-  //      resourceAttributes.append(existingAttributes);
-  //      resourceAttributes.append(",");
-  //    }
-  //    // Add new attributes
-  //    for (Map.Entry<String, String> entry : newAttributes.entrySet()) {
-  //
-  // resourceAttributes.append(entry.getKey()).append("=").append(entry.getValue()).append(",");
-  //    }
-  //
-  //    // Remove trailing comma if exists
-  //    if (resourceAttributes.length() > 0
-  //        && resourceAttributes.charAt(resourceAttributes.length() - 1) == ',') {
-  //      resourceAttributes.setLength(resourceAttributes.length() - 1);
-  //    }
-  //
-  //    properties.put("otel.resource.attributes", resourceAttributes.toString());
-  //    LOGGER.info("Resource attributes configured: " + resourceAttributes.toString());
-  //  }
-  //
   private void configureCompression(Map<String, String> properties) {
     boolean enableGzip = EnvironmentConfig.isMwGzipEnabled();
     if (enableGzip) {
