@@ -33,7 +33,9 @@ public class EnvironmentConfig {
     MW_CUSTOM_RESOURCE_ATTRIBUTE(null),
     MW_LOG_LEVEL(null),
     MW_ENABLE_GZIP("true"),
-    MW_AGENT("true");
+    MW_AGENT("true"),
+    MW_VCS_COMMIT_SHA(null),
+    MW_VCS_REPOSITORY_URL("");
     private final String defaultValue;
 
     EnvVar(String defaultValue) {
@@ -139,5 +141,13 @@ public class EnvironmentConfig {
 
   public static String getMwLogLevel() {
     return get(EnvVar.MW_LOG_LEVEL);
+  }
+
+  public static String getMwVcsCommitSha() {
+    return get(EnvVar.MW_VCS_COMMIT_SHA);
+  }
+
+  public static String getMwVcsRepositoryUrl() {
+    return get(EnvVar.MW_VCS_REPOSITORY_URL);
   }
 }

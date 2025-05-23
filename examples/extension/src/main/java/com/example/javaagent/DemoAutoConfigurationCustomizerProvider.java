@@ -69,6 +69,18 @@ public class DemoAutoConfigurationCustomizerProvider
         parseResourceAttributes(EnvironmentConfig.getMwCustomResourceAttribute());
     builder.putAll(mwAttributes);
 
+    // Add commit-sha as Resource Attribute for OpsAI
+    String commitShaValue = EnvironmentConfig.getMwVcsCommitSha();
+    if (commitShaValue != null && !commitShaValue.isEmpty()) {
+      builder.put("vcs.commit_sha", commitShaValue);
+    }
+
+    // Add repository url as a Resource Attribute for OpsAI
+    String repoUrl = EnvironmentConfig.getMwVcsRepositoryUrl();
+    if (repoUrl != null && !repoUrl.isEmpty()) {
+      builder.put("vcs.repository_url", repoUrl);
+    }
+
     return Resource.create(builder.build());
   }
 
