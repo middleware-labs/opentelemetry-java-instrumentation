@@ -72,6 +72,8 @@ dependencies {
 
   implementation(platform("io.opentelemetry:opentelemetry-bom:${versions.opentelemetrySdk}"))
 
+  implementation 'org.eclipse.jgit:org.eclipse.jgit:6.8.0.202311291450-r'
+
   // these serve as a test of the instrumentation boms
   implementation(platform("io.opentelemetry.instrumentation:opentelemetry-instrumentation-bom:${versions.opentelemetryJavaagent}"))
   implementation(platform("io.opentelemetry.instrumentation:opentelemetry-instrumentation-bom-alpha:${versions.opentelemetryJavaagentAlpha}"))

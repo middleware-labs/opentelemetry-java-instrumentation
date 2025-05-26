@@ -8,6 +8,7 @@ package com.example.javaagent;
 import com.example.healthcheck.HealthCheck;
 import com.example.javaagent.config.ConfigManager;
 import com.example.javaagent.config.EnvironmentConfig;
+import com.example.javaagent.vcsintegration.VcsUtils;
 import com.example.profile.PyroscopeProfile;
 import com.google.auto.service.AutoService;
 import io.opentelemetry.api.common.AttributeKey;
@@ -70,15 +71,26 @@ public class DemoAutoConfigurationCustomizerProvider
     builder.putAll(mwAttributes);
 
     // Add commit-sha as Resource Attribute for OpsAI
+    // VCS Integration - Environment variables take precedence, then auto-detection
     String commitShaValue = EnvironmentConfig.getMwVcsCommitSha();
+    if (commitShaValue == null || commitShaValue.isEmpty()) {
+      LOGGER.info("MW_VCS_COMMIT_SHA not set, attempting Git auto-detection");
+      commitShaValue = VcsUtils.getCurrentCommitSha();
+    }
     if (commitShaValue != null && !commitShaValue.isEmpty()) {
       builder.put("vcs.commit_sha", commitShaValue);
+      LOGGER.info("Added vcs.commit_sha: " + commitShaValue);
     }
 
     // Add repository url as a Resource Attribute for OpsAI
     String repoUrl = EnvironmentConfig.getMwVcsRepositoryUrl();
+    if (repoUrl == null || repoUrl.isEmpty()) {
+      LOGGER.info("MW_VCS_REPOSITORY_URL not set, attempting Git auto-detection");
+      repoUrl = VcsUtils.getRepositoryUrl();
+    }
     if (repoUrl != null && !repoUrl.isEmpty()) {
       builder.put("vcs.repository_url", repoUrl);
+      LOGGER.info("Added vcs.repository_url: " + repoUrl);
     }
 
     return Resource.create(builder.build());
