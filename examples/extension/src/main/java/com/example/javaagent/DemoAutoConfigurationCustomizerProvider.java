@@ -6,6 +6,7 @@
 package com.example.javaagent;
 
 import com.example.healthcheck.HealthCheck;
+import com.example.javaagent.codeextraction.CodeContextSpanProcessor;
 import com.example.javaagent.config.ConfigManager;
 import com.example.javaagent.config.EnvironmentConfig;
 import com.example.javaagent.vcsintegration.VcsUtils;
@@ -70,7 +71,6 @@ public class DemoAutoConfigurationCustomizerProvider
         parseResourceAttributes(EnvironmentConfig.getMwCustomResourceAttribute());
     builder.putAll(mwAttributes);
 
-    // Add commit-sha as Resource Attribute for OpsAI
     // VCS Integration - Environment variables take precedence, then auto-detection
     String commitShaValue = EnvironmentConfig.getMwVcsCommitSha();
     if (commitShaValue == null || commitShaValue.isEmpty()) {
@@ -82,7 +82,6 @@ public class DemoAutoConfigurationCustomizerProvider
       LOGGER.info("Added vcs.commit_sha: " + commitShaValue);
     }
 
-    // Add repository url as a Resource Attribute for OpsAI
     String repoUrl = EnvironmentConfig.getMwVcsRepositoryUrl();
     if (repoUrl == null || repoUrl.isEmpty()) {
       LOGGER.info("MW_VCS_REPOSITORY_URL not set, attempting Git auto-detection");
@@ -168,6 +167,10 @@ public class DemoAutoConfigurationCustomizerProvider
           .setResource(Resource.empty())
           .setSampler(Sampler.alwaysOff());
     }
+
+    // Add code context enhancement for exceptions (Requirement 3)
+    tracerProvider.addSpanProcessor(new CodeContextSpanProcessor());
+
     return tracerProvider.setResource(createCommonResource());
   }
 
