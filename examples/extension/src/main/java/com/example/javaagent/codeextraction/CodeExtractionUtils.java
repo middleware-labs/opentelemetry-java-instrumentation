@@ -444,6 +444,7 @@ public class CodeExtractionUtils {
     String[] systemPackages = {
       "java.",
       "javax.",
+      "jakarta.",
       "sun.",
       "com.sun.",
       "org.springframework.",

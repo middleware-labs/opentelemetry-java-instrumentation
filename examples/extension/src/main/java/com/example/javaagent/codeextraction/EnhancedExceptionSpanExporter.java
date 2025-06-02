@@ -55,6 +55,40 @@ public class EnhancedExceptionSpanExporter implements SpanExporter {
         if (enrichedSpan != span) {
           enhancedSpans++;
           System.out.println("✅ SUCCESSFULLY ENRICHED SPAN #" + enhancedSpans);
+
+          // Debug: Show what's actually being exported
+          List<EventData> events = enrichedSpan.getEvents();
+          for (EventData event : events) {
+            if (event.getName().equals("exception")) {
+              String stackDetails =
+                  event.getAttributes().get(AttributeKey.stringKey("exception.stack_details"));
+              if (stackDetails != null && !stackDetails.equals("[]")) {
+                System.out.println(
+                    "🎉 CONFIRMED: exception.stack_details present in exported span");
+                System.out.println(
+                    "📏 Stack details length: " + stackDetails.length() + " characters");
+
+                // Show a preview of the function body
+                if (stackDetails.contains("exception.function_body")) {
+                  System.out.println("📝 Contains function body: ✅");
+
+                  // Extract and show first few characters of function body
+                  int bodyStart = stackDetails.indexOf("\"exception.function_body\":\"") + 27;
+                  if (bodyStart > 26 && bodyStart < stackDetails.length()) {
+                    int bodyEnd = Math.min(bodyStart + 100, stackDetails.indexOf("\"", bodyStart));
+                    if (bodyEnd > bodyStart) {
+                      String bodyPreview = stackDetails.substring(bodyStart, bodyEnd);
+                      System.out.println("📝 Function body preview: " + bodyPreview + "...");
+                    }
+                  }
+                }
+              } else {
+                System.out.println("❌ WARNING: exception.stack_details is empty or missing");
+              }
+              break;
+            }
+          }
+
           enrichedSpans.add(enrichedSpan);
         } else {
           System.out.println("❌ Failed to enrich span");
@@ -140,6 +174,10 @@ public class EnhancedExceptionSpanExporter implements SpanExporter {
       // Convert stack details to JSON string
       String stackDetailsJson = convertStackDetailsToJson(stackDetails);
 
+      // Debug: Show the final JSON being exported
+      System.out.println("🎯 FINAL JSON BEING EXPORTED:");
+      System.out.println("exception.stack_details = " + stackDetailsJson);
+
       // Create new attributes with original data + stack_details
       AttributesBuilder newAttributes =
           Attributes.builder()
@@ -174,14 +212,78 @@ public class EnhancedExceptionSpanExporter implements SpanExporter {
     }
   }
 
+  // /** Extract stack details for each application code frame */
+  // private List<Map<String, Object>> extractStackDetails(String stacktrace) {
+  //   List<Map<String, Object>> stackDetails = new ArrayList<>();
+
+  //   try {
+  //     // Parse stacktrace to get application code frames
+  //     List<StackTraceElement> appCodeElements = parseStacktraceForAppCode(stacktrace);
+
+  //     System.out.println("📊 Found " + appCodeElements.size() + " application code frames");
+
+  //     for (StackTraceElement element : appCodeElements) {
+  //       // Only process application code to avoid noise from system classes
+  //       if (isApplicationCode(element.getClassName())) {
+  //         Map<String, Object> stackDetail = createStackDetailEntry(element);
+  //         if (!stackDetail.isEmpty()) {
+  //           stackDetails.add(stackDetail);
+
+  //           System.out.println(
+  //               "📋 Stack detail: "
+  //                   + element.getMethodName()
+  //                   + " ("
+  //                   + element.getFileName()
+  //                   + ":"
+  //                   + element.getLineNumber()
+  //                   + ")");
+  //         }
+  //       } else {
+  //         System.out.println(
+  //             "⏭️  Skipping system class: "
+  //                 + element.getClassName()
+  //                 + "."
+  //                 + element.getMethodName());
+  //       }
+  //     }
+
+  //   } catch (Exception e) {
+  //     System.out.println("❌ Error extracting stack details: " + e.getMessage());
+  //   }
+
+  //   return stackDetails;
+  // }
   /** Extract stack details for each application code frame */
   private List<Map<String, Object>> extractStackDetails(String stacktrace) {
     List<Map<String, Object>> stackDetails = new ArrayList<>();
 
+    LOGGER.info("🆕 NEW extractStackDetails method is running!"); // ADD THIS LINE
     try {
-      // Parse stacktrace to get application code frames
-      List<StackTraceElement> appCodeElements = parseStacktraceForAppCode(stacktrace);
+      // Parse stacktrace to get ALL frames first
+      List<StackTraceElement> allElements = parseStacktraceForAllCode(stacktrace);
 
+      // Filter to get only application code frames
+      List<StackTraceElement> appCodeElements = new ArrayList<>();
+      for (StackTraceElement element : allElements) {
+        if (isApplicationCode(element.getClassName())) {
+          appCodeElements.add(element);
+        } else {
+          System.out.println(
+              "⏭️  Filtering out system class: "
+                  + element.getClassName()
+                  + "."
+                  + element.getMethodName());
+        }
+      }
+
+      System.out.println(
+          "📊 Found "
+              + appCodeElements.size()
+              + " application code frames (filtered from "
+              + allElements.size()
+              + " total)");
+
+      // Process only application code frames
       for (StackTraceElement element : appCodeElements) {
         Map<String, Object> stackDetail = createStackDetailEntry(element);
         if (!stackDetail.isEmpty()) {
@@ -549,22 +651,42 @@ public class EnhancedExceptionSpanExporter implements SpanExporter {
 
   // Source code reading methods (reused from previous implementation)
 
-  private List<StackTraceElement> parseStacktraceForAppCode(String stacktrace) {
-    List<StackTraceElement> appElements = new ArrayList<>();
+  // private List<StackTraceElement> parseStacktraceForAppCode(String stacktrace) {
+  //   List<StackTraceElement> appElements = new ArrayList<>();
+
+  //   String[] lines = stacktrace.split("\n");
+
+  //   for (String line : lines) {
+  //     line = line.trim();
+  //     if (line.startsWith("at ") && isApplicationCodeLine(line)) {
+  //       StackTraceElement element = parseStackTraceLine(line);
+  //       if (element != null) {
+  //         appElements.add(element);
+  //       }
+  //     }
+  //   }
+
+  //   return appElements;
+  // }
+  //
+
+  /** Parse stacktrace to get ALL frames (not just app code) */
+  private List<StackTraceElement> parseStacktraceForAllCode(String stacktrace) {
+    List<StackTraceElement> allElements = new ArrayList<>();
 
     String[] lines = stacktrace.split("\n");
 
     for (String line : lines) {
       line = line.trim();
-      if (line.startsWith("at ") && isApplicationCodeLine(line)) {
+      if (line.startsWith("at ")) { // Get ALL frames, not filtering here
         StackTraceElement element = parseStackTraceLine(line);
         if (element != null) {
-          appElements.add(element);
+          allElements.add(element);
         }
       }
     }
 
-    return appElements;
+    return allElements;
   }
 
   private StackTraceElement parseStackTraceLine(String line) {
@@ -611,6 +733,7 @@ public class EnhancedExceptionSpanExporter implements SpanExporter {
     String[] systemPackages = {
       "java.",
       "javax.",
+      "jakarta",
       "sun.",
       "com.sun.",
       "org.springframework.",
@@ -636,6 +759,7 @@ public class EnhancedExceptionSpanExporter implements SpanExporter {
     String[] systemPackages = {
       "java.",
       "javax.",
+      "jakarta",
       "sun.",
       "com.sun.",
       "org.springframework.",
