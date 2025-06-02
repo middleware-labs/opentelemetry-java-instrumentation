@@ -6,7 +6,7 @@
 package com.example.javaagent;
 
 import com.example.healthcheck.HealthCheck;
-import com.example.javaagent.codeextraction.CodeContextSpanProcessor;
+import com.example.javaagent.codeextraction.CodeContextSpanExporter;
 import com.example.javaagent.config.ConfigManager;
 import com.example.javaagent.config.EnvironmentConfig;
 import com.example.javaagent.vcsintegration.VcsUtils;
@@ -15,6 +15,7 @@ import com.google.auto.service.AutoService;
 import io.opentelemetry.api.common.AttributeKey;
 import io.opentelemetry.api.common.Attributes;
 import io.opentelemetry.api.common.AttributesBuilder;
+import io.opentelemetry.exporter.otlp.trace.OtlpGrpcSpanExporter;
 import io.opentelemetry.sdk.autoconfigure.spi.AutoConfigurationCustomizer;
 import io.opentelemetry.sdk.autoconfigure.spi.AutoConfigurationCustomizerProvider;
 import io.opentelemetry.sdk.autoconfigure.spi.ConfigProperties;
@@ -26,9 +27,8 @@ import io.opentelemetry.sdk.logs.export.LogRecordExporter;
 import io.opentelemetry.sdk.logs.export.SimpleLogRecordProcessor;
 import io.opentelemetry.sdk.metrics.SdkMeterProviderBuilder;
 import io.opentelemetry.sdk.resources.Resource;
-import io.opentelemetry.sdk.trace.SdkTracerProvider;
 import io.opentelemetry.sdk.trace.SdkTracerProviderBuilder;
-import io.opentelemetry.sdk.trace.samplers.Sampler;
+import io.opentelemetry.sdk.trace.export.BatchSpanProcessor;
 import java.lang.reflect.Field;
 import java.util.Collection;
 import java.util.Map;
@@ -158,21 +158,53 @@ public class DemoAutoConfigurationCustomizerProvider
         .addLogRecordProcessor(DemoLogRecordProcessor.getInstance());
   }
 
+  // In your configureSdkTraceProvider method:
   private SdkTracerProviderBuilder configureSdkTraceProvider(
       SdkTracerProviderBuilder tracerProvider, ConfigProperties config) {
+
     if (!EnvironmentConfig.isMwApmCollectTraces()) {
-      LOGGER.warning("Otel tracing is disabled");
-      // Return a builder that will create a TracerProvider with no samplers and no span processors
-      return SdkTracerProvider.builder()
-          .setResource(Resource.empty())
-          .setSampler(Sampler.alwaysOff());
+      // ... disabled case
     }
 
-    // Add code context enhancement for exceptions (Requirement 3)
-    tracerProvider.addSpanProcessor(new CodeContextSpanProcessor());
+    // Create the original OTLP exporter
+    OtlpGrpcSpanExporter otlpExporter =
+        OtlpGrpcSpanExporter.builder()
+            .setEndpoint(config.getString("otel.exporter.otlp.endpoint"))
+            .build();
+
+    // Wrap it with our code context exporter
+    CodeContextSpanExporter codeContextExporter = new CodeContextSpanExporter(otlpExporter);
+
+    // Add the wrapped exporter to a batch processor
+    tracerProvider.addSpanProcessor(BatchSpanProcessor.builder(codeContextExporter).build());
 
     return tracerProvider.setResource(createCommonResource());
   }
+
+  // private SdkTracerProviderBuilder configureSdkTraceProvider(
+  //     SdkTracerProviderBuilder tracerProvider, ConfigProperties config) {
+  //   if (!EnvironmentConfig.isMwApmCollectTraces()) {
+  //     LOGGER.warning("Otel tracing is disabled");
+  //     // Return a builder that will create a TracerProvider with no samplers and no span
+  // processors
+  //     return SdkTracerProvider.builder()
+  //         .setResource(Resource.empty())
+  //         .setSampler(Sampler.alwaysOff());
+  //   }
+
+  //   // Add code context enhancement for exceptions (Requirement 3)
+  //   // tracerProvider.addSpanProcessor(new CodeContextSpanProcessor());
+
+  //   tracerProvider.addSpanProcessor(BatchSpanProcessor.builder(
+  //     new CodeContextSpanExporter(
+  //         OtlpGrpcSpanExporter.builder()
+  //             .setEndpoint(config.getString("otel.exporter.otlp.endpoint"))
+  //             .build()
+  //     )
+  //   ).build());
+
+  //   return tracerProvider.setResource(createCommonResource());
+  // }
 
   private Map<String, String> getDefaultProperties() {
     ConfigManager configManager = new ConfigManager();
