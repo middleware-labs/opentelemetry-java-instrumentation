@@ -76,6 +76,11 @@ dependencies {
 
   implementation("io.opentelemetry:opentelemetry-exporter-otlp:${versions.opentelemetrySdk}")
 
+  // Jackson for JSON processing
+  implementation("com.fasterxml.jackson.core:jackson-databind:2.15.2")
+  implementation("com.fasterxml.jackson.core:jackson-core:2.15.2")
+  implementation("com.fasterxml.jackson.core:jackson-annotations:2.15.2")
+
   // these serve as a test of the instrumentation boms
   implementation(platform("io.opentelemetry.instrumentation:opentelemetry-instrumentation-bom:${versions.opentelemetryJavaagent}"))
   implementation(platform("io.opentelemetry.instrumentation:opentelemetry-instrumentation-bom-alpha:${versions.opentelemetryJavaagentAlpha}"))

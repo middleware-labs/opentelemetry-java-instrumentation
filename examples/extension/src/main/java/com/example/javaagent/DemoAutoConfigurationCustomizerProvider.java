@@ -6,7 +6,7 @@
 package com.example.javaagent;
 
 import com.example.healthcheck.HealthCheck;
-import com.example.javaagent.codeextraction.CodeContextSpanExporter;
+import com.example.javaagent.codeextraction.EnhancedExceptionSpanExporter; // NEW IMPORT
 import com.example.javaagent.config.ConfigManager;
 import com.example.javaagent.config.EnvironmentConfig;
 import com.example.javaagent.vcsintegration.VcsUtils;
@@ -15,7 +15,7 @@ import com.google.auto.service.AutoService;
 import io.opentelemetry.api.common.AttributeKey;
 import io.opentelemetry.api.common.Attributes;
 import io.opentelemetry.api.common.AttributesBuilder;
-import io.opentelemetry.exporter.otlp.trace.OtlpGrpcSpanExporter;
+import io.opentelemetry.exporter.otlp.trace.OtlpGrpcSpanExporter; // NEW IMPORT
 import io.opentelemetry.sdk.autoconfigure.spi.AutoConfigurationCustomizer;
 import io.opentelemetry.sdk.autoconfigure.spi.AutoConfigurationCustomizerProvider;
 import io.opentelemetry.sdk.autoconfigure.spi.ConfigProperties;
@@ -27,8 +27,10 @@ import io.opentelemetry.sdk.logs.export.LogRecordExporter;
 import io.opentelemetry.sdk.logs.export.SimpleLogRecordProcessor;
 import io.opentelemetry.sdk.metrics.SdkMeterProviderBuilder;
 import io.opentelemetry.sdk.resources.Resource;
+import io.opentelemetry.sdk.trace.SdkTracerProvider;
 import io.opentelemetry.sdk.trace.SdkTracerProviderBuilder;
-import io.opentelemetry.sdk.trace.export.BatchSpanProcessor;
+import io.opentelemetry.sdk.trace.export.BatchSpanProcessor; // NEW IMPORT
+import io.opentelemetry.sdk.trace.samplers.Sampler;
 import java.lang.reflect.Field;
 import java.util.Collection;
 import java.util.Map;
@@ -131,7 +133,6 @@ public class DemoAutoConfigurationCustomizerProvider
 
     if (!EnvironmentConfig.isMwApmCollectLogs()) {
       LOGGER.warning("Otel logging is disabled");
-      // Return a builder that will create a LoggerProvider with no processors
       return SdkLoggerProvider.builder()
           .setResource(Resource.empty())
           .addLogRecordProcessor(
@@ -158,53 +159,44 @@ public class DemoAutoConfigurationCustomizerProvider
         .addLogRecordProcessor(DemoLogRecordProcessor.getInstance());
   }
 
-  // In your configureSdkTraceProvider method:
   private SdkTracerProviderBuilder configureSdkTraceProvider(
       SdkTracerProviderBuilder tracerProvider, ConfigProperties config) {
-
     if (!EnvironmentConfig.isMwApmCollectTraces()) {
-      // ... disabled case
+      LOGGER.warning("Otel tracing is disabled");
+      return SdkTracerProvider.builder()
+          .setResource(Resource.empty())
+          .setSampler(Sampler.alwaysOff());
     }
 
-    // Create the original OTLP exporter
-    OtlpGrpcSpanExporter otlpExporter =
-        OtlpGrpcSpanExporter.builder()
-            .setEndpoint(config.getString("otel.exporter.otlp.endpoint"))
-            .build();
+    // 🚀 NEW: Enhanced Exception Code Extraction Implementation
+    try {
+      // Create the OTLP exporter
+      String endpoint = config.getString("otel.exporter.otlp.endpoint", "http://localhost:9319");
 
-    // Wrap it with our code context exporter
-    CodeContextSpanExporter codeContextExporter = new CodeContextSpanExporter(otlpExporter);
+      OtlpGrpcSpanExporter otlpExporter =
+          OtlpGrpcSpanExporter.builder().setEndpoint(endpoint).build();
 
-    // Add the wrapped exporter to a batch processor
-    tracerProvider.addSpanProcessor(BatchSpanProcessor.builder(codeContextExporter).build());
+      // Wrap with enhanced exception span exporter (Python-style format)
+      EnhancedExceptionSpanExporter enhancedExporter =
+          new EnhancedExceptionSpanExporter(otlpExporter);
+
+      // Add the enhanced exporter with batch processing
+      tracerProvider.addSpanProcessor(BatchSpanProcessor.builder(enhancedExporter).build());
+
+      LOGGER.info("🎯 Enhanced Exception Span Exporter configured successfully");
+      LOGGER.info("   Target endpoint: " + endpoint);
+      LOGGER.info("   Format: Python-compatible exception.stack_details");
+
+    } catch (Exception e) {
+      LOGGER.severe("❌ Failed to configure Enhanced Exception Span Exporter: " + e.getMessage());
+      e.printStackTrace();
+
+      // Fallback: Continue without enhancement
+      LOGGER.warning("⚠️  Continuing without exception code enhancement");
+    }
 
     return tracerProvider.setResource(createCommonResource());
   }
-
-  // private SdkTracerProviderBuilder configureSdkTraceProvider(
-  //     SdkTracerProviderBuilder tracerProvider, ConfigProperties config) {
-  //   if (!EnvironmentConfig.isMwApmCollectTraces()) {
-  //     LOGGER.warning("Otel tracing is disabled");
-  //     // Return a builder that will create a TracerProvider with no samplers and no span
-  // processors
-  //     return SdkTracerProvider.builder()
-  //         .setResource(Resource.empty())
-  //         .setSampler(Sampler.alwaysOff());
-  //   }
-
-  //   // Add code context enhancement for exceptions (Requirement 3)
-  //   // tracerProvider.addSpanProcessor(new CodeContextSpanProcessor());
-
-  //   tracerProvider.addSpanProcessor(BatchSpanProcessor.builder(
-  //     new CodeContextSpanExporter(
-  //         OtlpGrpcSpanExporter.builder()
-  //             .setEndpoint(config.getString("otel.exporter.otlp.endpoint"))
-  //             .build()
-  //     )
-  //   ).build());
-
-  //   return tracerProvider.setResource(createCommonResource());
-  // }
 
   private Map<String, String> getDefaultProperties() {
     ConfigManager configManager = new ConfigManager();
