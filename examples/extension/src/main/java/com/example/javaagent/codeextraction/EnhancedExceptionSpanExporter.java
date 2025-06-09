@@ -14,11 +14,11 @@ import io.opentelemetry.sdk.common.CompletableResultCode;
 import io.opentelemetry.sdk.trace.data.EventData;
 import io.opentelemetry.sdk.trace.data.SpanData;
 import io.opentelemetry.sdk.trace.export.SpanExporter;
-import java.io.*;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.*;
+import java.util.logging.Level;
 import java.util.logging.Logger;
 
 /**
@@ -33,15 +33,24 @@ public class EnhancedExceptionSpanExporter implements SpanExporter {
   private final ObjectMapper objectMapper = new ObjectMapper();
   private static int processedSpans = 0;
   private static int enhancedSpans = 0;
+  private final boolean debugEnabled;
 
   public EnhancedExceptionSpanExporter(SpanExporter delegate) {
     this.delegate = delegate;
-    System.out.println("🚀 EnhancedExceptionSpanExporter initialized - Python-style format");
+    this.debugEnabled = LOGGER.isLoggable(Level.FINE);
+
+    if (debugEnabled) {
+      LOGGER.fine("🚀 EnhancedExceptionSpanExporter initialized - Python-style format");
+    } else {
+      LOGGER.info("EnhancedExceptionSpanExporter initialized with exception enrichment");
+    }
   }
 
   @Override
   public CompletableResultCode export(Collection<SpanData> spans) {
-    System.out.println("📦 EXPORTING " + spans.size() + " SPANS");
+    if (debugEnabled) {
+      LOGGER.fine("📦 EXPORTING " + spans.size() + " SPANS");
+    }
 
     List<SpanData> enrichedSpans = new ArrayList<>();
 
@@ -49,49 +58,54 @@ public class EnhancedExceptionSpanExporter implements SpanExporter {
       processedSpans++;
 
       if (hasExceptions(span)) {
-        System.out.println("🔥 FOUND EXCEPTION SPAN: " + span.getName());
+        if (debugEnabled) {
+          LOGGER.fine("🔥 FOUND EXCEPTION SPAN: " + span.getName());
+        }
 
         SpanData enrichedSpan = enrichSpanWithStackDetails(span);
         if (enrichedSpan != span) {
           enhancedSpans++;
-          System.out.println("✅ SUCCESSFULLY ENRICHED SPAN #" + enhancedSpans);
+          if (debugEnabled) {
+            LOGGER.fine("✅ SUCCESSFULLY ENRICHED SPAN #" + enhancedSpans);
 
-          // Debug: Show what's actually being exported
-          List<EventData> events = enrichedSpan.getEvents();
-          for (EventData event : events) {
-            if (event.getName().equals("exception")) {
-              String stackDetails =
-                  event.getAttributes().get(AttributeKey.stringKey("exception.stack_details"));
-              if (stackDetails != null && !stackDetails.equals("[]")) {
-                System.out.println(
-                    "🎉 CONFIRMED: exception.stack_details present in exported span");
-                System.out.println(
-                    "📏 Stack details length: " + stackDetails.length() + " characters");
+            // Debug: Show what's actually being exported
+            List<EventData> events = enrichedSpan.getEvents();
+            for (EventData event : events) {
+              if (event.getName().equals("exception")) {
+                String stackDetails =
+                    event.getAttributes().get(AttributeKey.stringKey("exception.stack_details"));
+                if (stackDetails != null && !stackDetails.equals("[]")) {
+                  LOGGER.fine("🎉 CONFIRMED: exception.stack_details present in exported span");
+                  LOGGER.fine("📏 Stack details length: " + stackDetails.length() + " characters");
 
-                // Show a preview of the function body
-                if (stackDetails.contains("exception.function_body")) {
-                  System.out.println("📝 Contains function body: ✅");
+                  // Show a preview of the function body
+                  if (stackDetails.contains("exception.function_body")) {
+                    LOGGER.fine("📝 Contains function body: ✅");
 
-                  // Extract and show first few characters of function body
-                  int bodyStart = stackDetails.indexOf("\"exception.function_body\":\"") + 27;
-                  if (bodyStart > 26 && bodyStart < stackDetails.length()) {
-                    int bodyEnd = Math.min(bodyStart + 100, stackDetails.indexOf("\"", bodyStart));
-                    if (bodyEnd > bodyStart) {
-                      String bodyPreview = stackDetails.substring(bodyStart, bodyEnd);
-                      System.out.println("📝 Function body preview: " + bodyPreview + "...");
+                    // Extract and show first few characters of function body
+                    int bodyStart = stackDetails.indexOf("\"exception.function_body\":\"") + 27;
+                    if (bodyStart > 26 && bodyStart < stackDetails.length()) {
+                      int bodyEnd =
+                          Math.min(bodyStart + 100, stackDetails.indexOf("\"", bodyStart));
+                      if (bodyEnd > bodyStart) {
+                        String bodyPreview = stackDetails.substring(bodyStart, bodyEnd);
+                        LOGGER.fine("📝 Function body preview: " + bodyPreview + "...");
+                      }
                     }
                   }
+                } else {
+                  LOGGER.fine("❌ WARNING: exception.stack_details is empty or missing");
                 }
-              } else {
-                System.out.println("❌ WARNING: exception.stack_details is empty or missing");
+                break;
               }
-              break;
             }
           }
 
           enrichedSpans.add(enrichedSpan);
         } else {
-          System.out.println("❌ Failed to enrich span");
+          if (debugEnabled) {
+            LOGGER.fine("❌ Failed to enrich span");
+          }
           enrichedSpans.add(span);
         }
       } else {
@@ -99,8 +113,10 @@ public class EnhancedExceptionSpanExporter implements SpanExporter {
       }
     }
 
-    System.out.println(
-        "📊 EXPORT SUMMARY: " + processedSpans + " processed, " + enhancedSpans + " enhanced");
+    if (debugEnabled) {
+      LOGGER.fine(
+          "📊 EXPORT SUMMARY: " + processedSpans + " processed, " + enhancedSpans + " enhanced");
+    }
 
     return delegate.export(enrichedSpans);
   }
@@ -108,7 +124,9 @@ public class EnhancedExceptionSpanExporter implements SpanExporter {
   /** Enrich span by modifying exception events to include stack_details */
   private SpanData enrichSpanWithStackDetails(SpanData originalSpan) {
     try {
-      System.out.println("🔍 ENRICHING SPAN WITH STACK DETAILS: " + originalSpan.getName());
+      if (debugEnabled) {
+        LOGGER.fine("🔍 ENRICHING SPAN WITH STACK DETAILS: " + originalSpan.getName());
+      }
 
       List<EventData> originalEvents = originalSpan.getEvents();
       List<EventData> enrichedEvents = new ArrayList<>();
@@ -117,13 +135,17 @@ public class EnhancedExceptionSpanExporter implements SpanExporter {
 
       for (EventData event : originalEvents) {
         if (isExceptionEvent(event)) {
-          System.out.println("🚨 Processing exception event: " + event.getName());
+          if (debugEnabled) {
+            LOGGER.fine("🚨 Processing exception event: " + event.getName());
+          }
 
           EventData enrichedEvent = createEnrichedExceptionEvent(event);
           if (enrichedEvent != null) {
             enrichedEvents.add(enrichedEvent);
             eventEnhanced = true;
-            System.out.println("✅ Exception event enhanced with stack details");
+            if (debugEnabled) {
+              LOGGER.fine("✅ Exception event enhanced with stack details");
+            }
           } else {
             enrichedEvents.add(event); // Keep original if enhancement failed
           }
@@ -139,8 +161,7 @@ public class EnhancedExceptionSpanExporter implements SpanExporter {
       }
 
     } catch (Exception e) {
-      System.out.println("❌ Error enriching span: " + e.getMessage());
-      e.printStackTrace();
+      LOGGER.log(Level.WARNING, "Error enriching span: " + e.getMessage(), e);
       return originalSpan;
     }
   }
@@ -157,7 +178,9 @@ public class EnhancedExceptionSpanExporter implements SpanExporter {
           originalAttributes.get(AttributeKey.stringKey("exception.stacktrace"));
 
       if (exceptionStacktrace == null || exceptionStacktrace.isEmpty()) {
-        System.out.println("❌ No stacktrace found in exception event");
+        if (debugEnabled) {
+          LOGGER.fine("❌ No stacktrace found in exception event");
+        }
         return null;
       }
 
@@ -165,18 +188,24 @@ public class EnhancedExceptionSpanExporter implements SpanExporter {
       List<Map<String, Object>> stackDetails = extractStackDetails(exceptionStacktrace);
 
       if (stackDetails.isEmpty()) {
-        System.out.println("❌ No application code found in stacktrace");
+        if (debugEnabled) {
+          LOGGER.fine("❌ No application code found in stacktrace");
+        }
         return null;
       }
 
-      System.out.println("📝 Extracted " + stackDetails.size() + " stack detail entries");
+      if (debugEnabled) {
+        LOGGER.fine("📝 Extracted " + stackDetails.size() + " stack detail entries");
+      }
 
       // Convert stack details to JSON string
       String stackDetailsJson = convertStackDetailsToJson(stackDetails);
 
       // Debug: Show the final JSON being exported
-      System.out.println("🎯 FINAL JSON BEING EXPORTED:");
-      System.out.println("exception.stack_details = " + stackDetailsJson);
+      if (debugEnabled) {
+        LOGGER.fine("🎯 FINAL JSON BEING EXPORTED:");
+        LOGGER.fine("exception.stack_details = " + stackDetailsJson);
+      }
 
       // Create new attributes with original data + stack_details
       AttributesBuilder newAttributes =
@@ -207,57 +236,16 @@ public class EnhancedExceptionSpanExporter implements SpanExporter {
           originalEvent.getName(), originalEvent.getEpochNanos(), newAttributes.build());
 
     } catch (Exception e) {
-      System.out.println("❌ Error creating enriched exception event: " + e.getMessage());
+      LOGGER.log(Level.WARNING, "Error creating enriched exception event: " + e.getMessage(), e);
       return null;
     }
   }
 
-  // /** Extract stack details for each application code frame */
-  // private List<Map<String, Object>> extractStackDetails(String stacktrace) {
-  //   List<Map<String, Object>> stackDetails = new ArrayList<>();
-
-  //   try {
-  //     // Parse stacktrace to get application code frames
-  //     List<StackTraceElement> appCodeElements = parseStacktraceForAppCode(stacktrace);
-
-  //     System.out.println("📊 Found " + appCodeElements.size() + " application code frames");
-
-  //     for (StackTraceElement element : appCodeElements) {
-  //       // Only process application code to avoid noise from system classes
-  //       if (isApplicationCode(element.getClassName())) {
-  //         Map<String, Object> stackDetail = createStackDetailEntry(element);
-  //         if (!stackDetail.isEmpty()) {
-  //           stackDetails.add(stackDetail);
-
-  //           System.out.println(
-  //               "📋 Stack detail: "
-  //                   + element.getMethodName()
-  //                   + " ("
-  //                   + element.getFileName()
-  //                   + ":"
-  //                   + element.getLineNumber()
-  //                   + ")");
-  //         }
-  //       } else {
-  //         System.out.println(
-  //             "⏭️  Skipping system class: "
-  //                 + element.getClassName()
-  //                 + "."
-  //                 + element.getMethodName());
-  //       }
-  //     }
-
-  //   } catch (Exception e) {
-  //     System.out.println("❌ Error extracting stack details: " + e.getMessage());
-  //   }
-
-  //   return stackDetails;
-  // }
   /** Extract stack details for each application code frame */
   private List<Map<String, Object>> extractStackDetails(String stacktrace) {
     List<Map<String, Object>> stackDetails = new ArrayList<>();
 
-    LOGGER.info("🆕 NEW extractStackDetails method is running!"); // ADD THIS LINE
+    LOGGER.info("🆕 NEW extractStackDetails method is running!");
     try {
       // Parse stacktrace to get ALL frames first
       List<StackTraceElement> allElements = parseStacktraceForAllCode(stacktrace);
@@ -267,8 +255,8 @@ public class EnhancedExceptionSpanExporter implements SpanExporter {
       for (StackTraceElement element : allElements) {
         if (isApplicationCode(element.getClassName())) {
           appCodeElements.add(element);
-        } else {
-          System.out.println(
+        } else if (debugEnabled) {
+          LOGGER.fine(
               "⏭️  Filtering out system class: "
                   + element.getClassName()
                   + "."
@@ -276,12 +264,14 @@ public class EnhancedExceptionSpanExporter implements SpanExporter {
         }
       }
 
-      System.out.println(
-          "📊 Found "
-              + appCodeElements.size()
-              + " application code frames (filtered from "
-              + allElements.size()
-              + " total)");
+      if (debugEnabled) {
+        LOGGER.fine(
+            "📊 Found "
+                + appCodeElements.size()
+                + " application code frames (filtered from "
+                + allElements.size()
+                + " total)");
+      }
 
       // Process only application code frames
       for (StackTraceElement element : appCodeElements) {
@@ -289,19 +279,21 @@ public class EnhancedExceptionSpanExporter implements SpanExporter {
         if (!stackDetail.isEmpty()) {
           stackDetails.add(stackDetail);
 
-          System.out.println(
-              "📋 Stack detail: "
-                  + element.getMethodName()
-                  + " ("
-                  + element.getFileName()
-                  + ":"
-                  + element.getLineNumber()
-                  + ")");
+          if (debugEnabled) {
+            LOGGER.fine(
+                "📋 Stack detail: "
+                    + element.getMethodName()
+                    + " ("
+                    + element.getFileName()
+                    + ":"
+                    + element.getLineNumber()
+                    + ")");
+          }
         }
       }
 
     } catch (Exception e) {
-      System.out.println("❌ Error extracting stack details: " + e.getMessage());
+      LOGGER.log(Level.WARNING, "Error extracting stack details: " + e.getMessage(), e);
     }
 
     return stackDetails;
@@ -319,11 +311,13 @@ public class EnhancedExceptionSpanExporter implements SpanExporter {
       stackDetail.put("exception.language", "java");
       stackDetail.put("exception.is_file_external", !isApplicationCode(element.getClassName()));
 
-      System.out.println(
-          "   📋 Creating stack detail for: "
-              + element.getClassName()
-              + "."
-              + element.getMethodName());
+      if (debugEnabled) {
+        LOGGER.fine(
+            "   📋 Creating stack detail for: "
+                + element.getClassName()
+                + "."
+                + element.getMethodName());
+      }
 
       // Extract complete function body
       FunctionExtractionResult functionResult = extractCompleteFunction(element);
@@ -335,24 +329,28 @@ public class EnhancedExceptionSpanExporter implements SpanExporter {
         stackDetail.put("exception.end_line", functionResult.endLine);
         stackDetail.put("exception.function_body", functionResult.functionBody);
 
-        System.out.println(
-            "   ✅ Function body stored: "
-                + functionResult.functionBody.split("\n").length
-                + " lines");
-        System.out.println(
-            "   📝 First line preview: "
-                + (functionResult.functionBody.split("\n").length > 0
-                    ? functionResult.functionBody.split("\n")[0].trim()
-                    : "empty"));
+        if (debugEnabled) {
+          LOGGER.fine(
+              "   ✅ Function body stored: "
+                  + functionResult.functionBody.split("\n").length
+                  + " lines");
+          LOGGER.fine(
+              "   📝 First line preview: "
+                  + (functionResult.functionBody.split("\n").length > 0
+                      ? functionResult.functionBody.split("\n")[0].trim()
+                      : "empty"));
+        }
       } else {
-        System.out.println("   ❌ Function extraction failed:");
-        System.out.println("      Success: " + functionResult.success);
-        System.out.println(
-            "      Body empty: "
-                + (functionResult.functionBody == null
-                    || functionResult.functionBody.trim().isEmpty()));
-        System.out.println("      Start line: " + functionResult.startLine);
-        System.out.println("      End line: " + functionResult.endLine);
+        if (debugEnabled) {
+          LOGGER.fine("   ❌ Function extraction failed:");
+          LOGGER.fine("      Success: " + functionResult.success);
+          LOGGER.fine(
+              "      Body empty: "
+                  + (functionResult.functionBody == null
+                      || functionResult.functionBody.trim().isEmpty()));
+          LOGGER.fine("      Start line: " + functionResult.startLine);
+          LOGGER.fine("      End line: " + functionResult.endLine);
+        }
 
         // Add placeholder values for debugging
         stackDetail.put("exception.start_line", functionResult.startLine);
@@ -361,8 +359,7 @@ public class EnhancedExceptionSpanExporter implements SpanExporter {
       }
 
     } catch (Exception e) {
-      System.out.println("❌ Error creating stack detail entry: " + e.getMessage());
-      e.printStackTrace();
+      LOGGER.log(Level.WARNING, "Error creating stack detail entry: " + e.getMessage(), e);
 
       // Add basic info even if extraction fails
       stackDetail.put("exception.start_line", element.getLineNumber());
@@ -378,31 +375,40 @@ public class EnhancedExceptionSpanExporter implements SpanExporter {
     FunctionExtractionResult result = new FunctionExtractionResult();
 
     try {
-      System.out.println(
-          "   🔍 Extracting function for: "
-              + element.getClassName()
-              + "."
-              + element.getMethodName());
-      System.out.println(
-          "      File: " + element.getFileName() + ", Line: " + element.getLineNumber());
+      if (debugEnabled) {
+        LOGGER.fine(
+            "   🔍 Extracting function for: "
+                + element.getClassName()
+                + "."
+                + element.getMethodName());
+        LOGGER.fine("      File: " + element.getFileName() + ", Line: " + element.getLineNumber());
+      }
 
       if (element.getFileName() == null || element.getLineNumber() <= 0) {
-        System.out.println("      ❌ Invalid file name or line number");
+        if (debugEnabled) {
+          LOGGER.fine("      ❌ Invalid file name or line number");
+        }
         return result;
       }
 
       // Read source file
       List<String> sourceLines = readSourceFile(element.getClassName(), element.getFileName());
       if (sourceLines.isEmpty()) {
-        System.out.println("      ❌ Could not read source file");
+        if (debugEnabled) {
+          LOGGER.fine("      ❌ Could not read source file");
+        }
         return result;
       }
 
-      System.out.println("      ✅ Source file read: " + sourceLines.size() + " lines");
+      if (debugEnabled) {
+        LOGGER.fine("      ✅ Source file read: " + sourceLines.size() + " lines");
+      }
 
       // Check if this is application code (skip system classes)
       if (!isApplicationCode(element.getClassName())) {
-        System.out.println("      ⏭️  Skipping system class: " + element.getClassName());
+        if (debugEnabled) {
+          LOGGER.fine("      ⏭️  Skipping system class: " + element.getClassName());
+        }
         return result;
       }
 
@@ -414,8 +420,13 @@ public class EnhancedExceptionSpanExporter implements SpanExporter {
         // Extract complete method
         StringBuilder functionBody = new StringBuilder();
 
-        System.out.println(
-            "      📏 Method boundaries found: " + boundaries.startLine + "-" + boundaries.endLine);
+        if (debugEnabled) {
+          LOGGER.fine(
+              "      📏 Method boundaries found: "
+                  + boundaries.startLine
+                  + "-"
+                  + boundaries.endLine);
+        }
 
         for (int i = boundaries.startLine; i <= boundaries.endLine; i++) {
           if (i >= 1 && i <= sourceLines.size()) {
@@ -431,25 +442,28 @@ public class EnhancedExceptionSpanExporter implements SpanExporter {
         result.endLine = boundaries.endLine;
         result.functionBody = extractedBody;
 
-        System.out.println("      ✅ Method extraction SUCCESS");
-        System.out.println("      📝 Body length: " + extractedBody.length() + " chars");
-        System.out.println("      📝 Lines extracted: " + extractedBody.split("\n").length);
+        if (debugEnabled) {
+          LOGGER.fine("      ✅ Method extraction SUCCESS");
+          LOGGER.fine("      📝 Body length: " + extractedBody.length() + " chars");
+          LOGGER.fine("      📝 Lines extracted: " + extractedBody.split("\n").length);
 
-        // Show first line preview
-        String[] lines = extractedBody.split("\n");
-        if (lines.length > 0) {
-          System.out.println("      📝 First line: " + lines[0].trim());
+          // Show first line preview
+          String[] lines = extractedBody.split("\n");
+          if (lines.length > 0) {
+            LOGGER.fine("      📝 First line: " + lines[0].trim());
+          }
         }
 
       } else {
-        System.out.println("      ❌ Method boundaries not found, falling back to context");
+        if (debugEnabled) {
+          LOGGER.fine("      ❌ Method boundaries not found, falling back to context");
+        }
         // Fallback to context lines
         result = extractContextLines(sourceLines, element.getLineNumber());
       }
 
     } catch (Exception e) {
-      System.out.println("      ❌ Exception during extraction: " + e.getMessage());
-      e.printStackTrace();
+      LOGGER.log(Level.WARNING, "Exception during function extraction: " + e.getMessage(), e);
     }
 
     return result;
@@ -492,7 +506,7 @@ public class EnhancedExceptionSpanExporter implements SpanExporter {
       }
 
     } catch (Exception e) {
-      System.out.println("❌ Error finding method boundaries: " + e.getMessage());
+      LOGGER.log(Level.WARNING, "Error finding method boundaries: " + e.getMessage(), e);
     }
 
     return boundaries;
@@ -571,7 +585,9 @@ public class EnhancedExceptionSpanExporter implements SpanExporter {
   private FunctionExtractionResult extractContextLines(List<String> sourceLines, int errorLine) {
     FunctionExtractionResult result = new FunctionExtractionResult();
 
-    System.out.println("      🔄 Using context lines fallback around line " + errorLine);
+    if (debugEnabled) {
+      LOGGER.fine("      🔄 Using context lines fallback around line " + errorLine);
+    }
 
     int contextSize = 5;
     int startLine = Math.max(1, errorLine - contextSize);
@@ -591,14 +607,16 @@ public class EnhancedExceptionSpanExporter implements SpanExporter {
     result.endLine = endLine;
     result.functionBody = extractedContext;
 
-    System.out.println(
-        "      ✅ Context extraction: "
-            + startLine
-            + "-"
-            + endLine
-            + " ("
-            + extractedContext.split("\n").length
-            + " lines)");
+    if (debugEnabled) {
+      LOGGER.fine(
+          "      ✅ Context extraction: "
+              + startLine
+              + "-"
+              + endLine
+              + " ("
+              + extractedContext.split("\n").length
+              + " lines)");
+    }
 
     return result;
   }
@@ -608,7 +626,7 @@ public class EnhancedExceptionSpanExporter implements SpanExporter {
     try {
       return objectMapper.writeValueAsString(stackDetails);
     } catch (Exception e) {
-      System.out.println("❌ Error converting stack details to JSON: " + e.getMessage());
+      LOGGER.log(Level.WARNING, "Error converting stack details to JSON: " + e.getMessage(), e);
       return "[]";
     }
   }
@@ -648,27 +666,6 @@ public class EnhancedExceptionSpanExporter implements SpanExporter {
         || eventName.contains("error")
         || event.getAttributes().get(AttributeKey.stringKey("exception.type")) != null;
   }
-
-  // Source code reading methods (reused from previous implementation)
-
-  // private List<StackTraceElement> parseStacktraceForAppCode(String stacktrace) {
-  //   List<StackTraceElement> appElements = new ArrayList<>();
-
-  //   String[] lines = stacktrace.split("\n");
-
-  //   for (String line : lines) {
-  //     line = line.trim();
-  //     if (line.startsWith("at ") && isApplicationCodeLine(line)) {
-  //       StackTraceElement element = parseStackTraceLine(line);
-  //       if (element != null) {
-  //         appElements.add(element);
-  //       }
-  //     }
-  //   }
-
-  //   return appElements;
-  // }
-  //
 
   /** Parse stacktrace to get ALL frames (not just app code) */
   private List<StackTraceElement> parseStacktraceForAllCode(String stacktrace) {
@@ -814,9 +811,18 @@ public class EnhancedExceptionSpanExporter implements SpanExporter {
 
   @Override
   public CompletableResultCode shutdown() {
-    System.out.println("🔚 EnhancedExceptionSpanExporter shutdown");
-    System.out.println("   Total spans processed: " + processedSpans);
-    System.out.println("   Total spans enhanced: " + enhancedSpans);
+    if (debugEnabled) {
+      LOGGER.fine("🔚 EnhancedExceptionSpanExporter shutdown");
+      LOGGER.fine("   Total spans processed: " + processedSpans);
+      LOGGER.fine("   Total spans enhanced: " + enhancedSpans);
+    } else {
+      LOGGER.info(
+          "EnhancedExceptionSpanExporter shutdown - "
+              + processedSpans
+              + " spans processed, "
+              + enhancedSpans
+              + " enhanced");
+    }
     return delegate.shutdown();
   }
 
