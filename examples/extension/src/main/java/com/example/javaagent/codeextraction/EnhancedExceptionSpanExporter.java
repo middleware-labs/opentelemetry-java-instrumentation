@@ -14,12 +14,20 @@ import io.opentelemetry.sdk.common.CompletableResultCode;
 import io.opentelemetry.sdk.trace.data.EventData;
 import io.opentelemetry.sdk.trace.data.SpanData;
 import io.opentelemetry.sdk.trace.export.SpanExporter;
+import java.io.ByteArrayOutputStream;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.*;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import java.util.stream.Collectors;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipInputStream;
 
 /**
  * SpanExporter that enriches exception events with detailed stack information matching the Python
@@ -469,44 +477,134 @@ public class EnhancedExceptionSpanExporter implements SpanExporter {
     return result;
   }
 
-  /** Find method start and end boundaries */
   private MethodBoundaries findMethodBoundaries(
       List<String> sourceLines, int errorLine, String methodName) {
     MethodBoundaries boundaries = new MethodBoundaries();
 
     try {
+      // Validate input parameters
+      if (sourceLines == null || sourceLines.isEmpty() || methodName == null) {
+        if (debugEnabled) {
+          LOGGER.fine(
+              "❌ Invalid input: sourceLines="
+                  + (sourceLines != null ? sourceLines.size() : "null")
+                  + ", methodName="
+                  + methodName);
+        }
+        return boundaries;
+      }
+
+      // Check if errorLine is within bounds
+      if (errorLine <= 0 || errorLine > sourceLines.size()) {
+        if (debugEnabled) {
+          LOGGER.fine(
+              "❌ Error line "
+                  + errorLine
+                  + " is out of bounds for file with "
+                  + sourceLines.size()
+                  + " lines");
+        }
+        // Try to search entire file for the method instead
+        return findMethodInEntireFile(sourceLines, methodName);
+      }
+
+      if (debugEnabled) {
+        LOGGER.fine(
+            "🔍 Searching for method '"
+                + methodName
+                + "' around line "
+                + errorLine
+                + " in file with "
+                + sourceLines.size()
+                + " lines");
+      }
+
       // Find method declaration line (search backwards from error line)
       int methodStartLine = -1;
+      int searchStartLine = Math.min(errorLine - 1, sourceLines.size() - 1);
 
-      for (int i = errorLine - 1; i >= 0; i--) {
+      for (int i = searchStartLine; i >= 0; i--) {
         String line = sourceLines.get(i).trim();
 
         if (isMethodDeclaration(line, methodName)) {
           methodStartLine = i + 1; // Convert to 1-based
+          if (debugEnabled) {
+            LOGGER.fine("✅ Found method declaration at line " + methodStartLine + ": " + line);
+          }
           break;
         }
 
         // Stop if we hit another method or class
         if (isAnotherMethodOrClassDeclaration(line, methodName)) {
+          if (debugEnabled) {
+            LOGGER.fine("⏹️ Hit another method/class declaration, stopping search");
+          }
           break;
         }
       }
 
       if (methodStartLine == -1) {
-        return boundaries; // Not found
+        if (debugEnabled) {
+          LOGGER.fine("❌ Method declaration not found, trying entire file search");
+        }
+        return findMethodInEntireFile(sourceLines, methodName);
       }
 
       // Find method end by tracking braces
       int methodEndLine = findMethodEndLine(sourceLines, methodStartLine);
 
-      if (methodEndLine != -1) {
+      if (methodEndLine != -1 && methodEndLine <= sourceLines.size()) {
         boundaries.found = true;
         boundaries.startLine = methodStartLine;
         boundaries.endLine = methodEndLine;
+
+        if (debugEnabled) {
+          LOGGER.fine("✅ Method boundaries found: " + methodStartLine + "-" + methodEndLine);
+        }
+      } else {
+        if (debugEnabled) {
+          LOGGER.fine("❌ Method end not found or out of bounds");
+        }
       }
 
     } catch (Exception e) {
       LOGGER.log(Level.WARNING, "Error finding method boundaries: " + e.getMessage(), e);
+    }
+
+    return boundaries;
+  }
+
+  private MethodBoundaries findMethodInEntireFile(List<String> sourceLines, String methodName) {
+    MethodBoundaries boundaries = new MethodBoundaries();
+
+    try {
+      if (debugEnabled) {
+        LOGGER.fine("🔍 Searching entire file for method: " + methodName);
+      }
+
+      for (int i = 0; i < sourceLines.size(); i++) {
+        String line = sourceLines.get(i).trim();
+
+        if (isMethodDeclaration(line, methodName)) {
+          int methodStartLine = i + 1; // Convert to 1-based
+          int methodEndLine = findMethodEndLine(sourceLines, methodStartLine);
+
+          if (methodEndLine != -1 && methodEndLine <= sourceLines.size()) {
+            boundaries.found = true;
+            boundaries.startLine = methodStartLine;
+            boundaries.endLine = methodEndLine;
+
+            if (debugEnabled) {
+              LOGGER.fine(
+                  "✅ Found method in entire file search: " + methodStartLine + "-" + methodEndLine);
+            }
+            break;
+          }
+        }
+      }
+
+    } catch (Exception e) {
+      LOGGER.log(Level.WARNING, "Error in entire file search: " + e.getMessage(), e);
     }
 
     return boundaries;
@@ -558,25 +656,53 @@ public class EnhancedExceptionSpanExporter implements SpanExporter {
     return false;
   }
 
+  
   private int findMethodEndLine(List<String> sourceLines, int methodStartLine) {
     int openBraces = 0;
     boolean foundFirstBrace = false;
 
-    for (int i = methodStartLine - 1; i < sourceLines.size(); i++) {
-      String line = sourceLines.get(i);
+    try {
+      // Convert to 0-based index and validate
+      int startIndex = methodStartLine - 1;
+      if (startIndex < 0 || startIndex >= sourceLines.size()) {
+        if (debugEnabled) {
+          LOGGER.fine(
+              "❌ Invalid start index: "
+                  + startIndex
+                  + " for file with "
+                  + sourceLines.size()
+                  + " lines");
+        }
+        return -1;
+      }
 
-      for (char c : line.toCharArray()) {
-        if (c == '{') {
-          openBraces++;
-          foundFirstBrace = true;
-        } else if (c == '}') {
-          openBraces--;
+      for (int i = startIndex; i < sourceLines.size(); i++) {
+        String line = sourceLines.get(i);
 
-          if (foundFirstBrace && openBraces == 0) {
-            return i + 1; // Convert to 1-based
+        for (char c : line.toCharArray()) {
+          if (c == '{') {
+            openBraces++;
+            foundFirstBrace = true;
+          } else if (c == '}') {
+            openBraces--;
+
+            if (foundFirstBrace && openBraces == 0) {
+              int endLine = i + 1; // Convert to 1-based
+              if (debugEnabled) {
+                LOGGER.fine("✅ Found method end at line " + endLine);
+              }
+              return endLine;
+            }
           }
         }
       }
+
+      if (debugEnabled) {
+        LOGGER.fine("❌ Method end not found - unclosed braces or reached end of file");
+      }
+
+    } catch (Exception e) {
+      LOGGER.log(Level.WARNING, "Error finding method end: " + e.getMessage(), e);
     }
 
     return -1;
@@ -728,17 +854,17 @@ public class EnhancedExceptionSpanExporter implements SpanExporter {
     if (stacktraceLine == null) return false;
 
     String[] systemPackages = {
-      "java.",
-      "javax.",
-      "jakarta",
-      "sun.",
-      "com.sun.",
-      "org.springframework.",
-      "org.apache.",
-      "io.opentelemetry.",
-      "org.slf4j.",
-      "ch.qos.logback.",
-      "org.junit."
+      // "java.",
+      // "javax.",
+      // "jakarta",
+      // "sun.",
+      // "com.sun.",
+      // "org.springframework.",
+      // "org.apache.",
+      // "io.opentelemetry.",
+      // "org.slf4j.",
+      // "ch.qos.logback.",
+      // "org.junit."
     };
 
     for (String systemPackage : systemPackages) {
@@ -754,17 +880,17 @@ public class EnhancedExceptionSpanExporter implements SpanExporter {
     if (className == null) return false;
 
     String[] systemPackages = {
-      "java.",
-      "javax.",
-      "jakarta",
-      "sun.",
-      "com.sun.",
-      "org.springframework.",
-      "org.apache.",
-      "io.opentelemetry.",
-      "org.slf4j.",
-      "ch.qos.logback.",
-      "org.junit."
+      // "java.",
+      // "javax.",
+      // "jakarta",
+      // "sun.",
+      // "com.sun.",
+      // "org.springframework.",
+      // "org.apache.",
+      // "io.opentelemetry.",
+      // "org.slf4j.",
+      // "ch.qos.logback.",
+      // "org.junit."
     };
 
     for (String systemPackage : systemPackages) {
@@ -778,18 +904,170 @@ public class EnhancedExceptionSpanExporter implements SpanExporter {
 
   private List<String> readSourceFile(String className, String fileName) {
     try {
-      String[] searchPaths = {"src/main/java", "src/java", "src"};
-
-      for (String basePath : searchPaths) {
+      // 1. Try local project source paths (your app code)
+      String[] localPaths = {"src/main/java", "src/java", "src"};
+      for (String basePath : localPaths) {
         Path sourceFile = findFileInDirectory(Paths.get(basePath), fileName);
         if (sourceFile != null && Files.exists(sourceFile)) {
+          if (debugEnabled) {
+            LOGGER.fine("✅ Found source in local project: " + sourceFile);
+          }
           return Files.readAllLines(sourceFile);
         }
       }
+
+      // 2. Try to find Spring Framework sources (if available)
+      if (className.startsWith("org.springframework.")) {
+        List<String> springSource = tryFindSpringSource(className, fileName);
+        if (!springSource.isEmpty()) {
+          return springSource;
+        }
+      }
+
+      // 3. Try to find JDK sources (if available)
+      if (className.startsWith("java.") || className.startsWith("jdk.")) {
+        List<String> jdkSource = tryFindJdkSource(className, fileName);
+        if (!jdkSource.isEmpty()) {
+          return jdkSource;
+        }
+      }
+
+      // 4. Try Maven/Gradle dependencies with sources
+      List<String> dependencySource = tryFindDependencySource(className, fileName);
+      if (!dependencySource.isEmpty()) {
+        return dependencySource;
+      }
+
+      if (debugEnabled) {
+        LOGGER.fine("❌ No source found for: " + className + " (" + fileName + ")");
+      }
+
     } catch (Exception e) {
-      // Silent failure
+      if (debugEnabled) {
+        LOGGER.fine("❌ Error reading source for " + className + ": " + e.getMessage());
+      }
     }
 
+    return Collections.emptyList();
+  }
+
+  private List<String> tryFindJdkSource(String className, String fileName) {
+    try {
+      // Common JDK source locations
+      String[] jdkSourcePaths = {
+        System.getProperty("java.home") + "/lib/src.zip",
+        System.getProperty("java.home") + "/../src.zip",
+        "/usr/lib/jvm/java-*/lib/src.zip",
+        "~/.sdkman/candidates/java/*/lib/src.zip"
+      };
+
+      for (String sourcePath : jdkSourcePaths) {
+        Path sourceZip = Paths.get(sourcePath);
+        if (Files.exists(sourceZip)) {
+          return extractFromZip(sourceZip, className, fileName);
+        }
+      }
+    } catch (Exception e) {
+      // Silent fallback
+    }
+    return Collections.emptyList();
+  }
+
+  private List<String> tryFindSpringSource(String className, String fileName) {
+    try {
+      // Look for Spring sources in Maven repository
+      String userHome = System.getProperty("user.home");
+      String[] springSourcePaths = {
+        userHome + "/.m2/repository/org/springframework",
+        userHome + "/.gradle/caches/modules-2/files-2.1/org.springframework"
+      };
+
+      for (String basePath : springSourcePaths) {
+        Path springPath = Paths.get(basePath);
+        if (Files.exists(springPath)) {
+          // Search for sources JAR files
+          try {
+            List<Path> sourceJars =
+                Files.walk(springPath)
+                    .filter(path -> path.toString().endsWith("-sources.jar"))
+                    .collect(Collectors.toList());
+
+            for (Path sourceJar : sourceJars) {
+              List<String> source = extractFromZip(sourceJar, className, fileName);
+              if (!source.isEmpty()) {
+                return source;
+              }
+            }
+          } catch (Exception e) {
+            // Continue searching
+          }
+        }
+      }
+    } catch (Exception e) {
+      // Silent fallback
+    }
+    return Collections.emptyList();
+  }
+
+  private List<String> tryFindDependencySource(String className, String fileName) {
+    try {
+      String userHome = System.getProperty("user.home");
+      String[] dependencyPaths = {userHome + "/.m2/repository", userHome + "/.gradle/caches"};
+
+      for (String basePath : dependencyPaths) {
+        Path depPath = Paths.get(basePath);
+        if (Files.exists(depPath)) {
+          try {
+            List<Path> sourceJars =
+                Files.walk(depPath)
+                    .filter(path -> path.toString().endsWith("-sources.jar"))
+                    .limit(100) // Limit search for performance
+                    .collect(Collectors.toList());
+
+            for (Path sourceJar : sourceJars) {
+              List<String> source = extractFromZip(sourceJar, className, fileName);
+              if (!source.isEmpty()) {
+                return source;
+              }
+            }
+          } catch (Exception e) {
+            // Continue searching
+          }
+        }
+      }
+    } catch (Exception e) {
+      // Silent fallback
+    }
+    return Collections.emptyList();
+  }
+
+  private List<String> extractFromZip(Path zipFile, String className, String fileName) {
+    try {
+      String classPath = className.replace('.', '/') + ".java";
+
+      try (ZipInputStream zis = new ZipInputStream(Files.newInputStream(zipFile))) {
+        ZipEntry entry;
+        while ((entry = zis.getNextEntry()) != null) {
+          if (entry.getName().endsWith(classPath) || entry.getName().endsWith(fileName)) {
+            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+            byte[] buffer = new byte[1024];
+            int len;
+            while ((len = zis.read(buffer)) > 0) {
+              baos.write(buffer, 0, len);
+            }
+            String content = new String(baos.toByteArray(), StandardCharsets.UTF_8);
+
+            if (debugEnabled) {
+              LOGGER.fine("✅ Found source in ZIP: " + zipFile + " -> " + entry.getName());
+            }
+
+            return Arrays.asList(content.split("\n"));
+          }
+        }
+      }
+    } catch (Exception e) {
+      // Silent fallback
+    }
     return Collections.emptyList();
   }
 
