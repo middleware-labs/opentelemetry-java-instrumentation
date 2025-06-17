@@ -396,7 +396,7 @@ public class EnhancedExceptionSpanExporter implements SpanExporter {
         // Add placeholder values for debugging
         stackDetail.put("exception.start_line", functionResult.startLine);
         stackDetail.put("exception.end_line", functionResult.endLine);
-        stackDetail.put("exception.function_body", "// Function body extraction failed");
+        stackDetail.put("exception.function_body", "");
       }
 
     } catch (Exception e) {
