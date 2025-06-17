@@ -15,14 +15,15 @@ import io.opentelemetry.sdk.trace.data.EventData;
 import io.opentelemetry.sdk.trace.data.SpanData;
 import io.opentelemetry.sdk.trace.export.SpanExporter;
 import java.io.ByteArrayOutputStream;
+import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.security.CodeSource;
+import java.security.ProtectionDomain;
 import java.util.*;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
@@ -43,14 +44,58 @@ public class EnhancedExceptionSpanExporter implements SpanExporter {
   private static int enhancedSpans = 0;
   private final boolean debugEnabled;
 
+  // Cache for code classification results to improve performance
+  private final ConcurrentHashMap<String, Boolean> classificationCache = new ConcurrentHashMap<>();
+
+  // Common library package prefixes that indicate external code
+  private static final Set<String> EXTERNAL_PACKAGE_PREFIXES =
+      new HashSet<>(
+          Arrays.asList(
+              "java.",
+              "javax.",
+              "jakarta.",
+              "jdk.",
+              "sun.",
+              "com.sun.",
+              "org.springframework.",
+              "org.apache.",
+              "org.eclipse.",
+              "org.junit.",
+              "org.testng.",
+              "org.mockito.",
+              "io.opentelemetry.",
+              "io.netty.",
+              "com.google.",
+              "com.fasterxml.",
+              "org.slf4j.",
+              "ch.qos.logback.",
+              "org.hibernate.",
+              "org.mongodb.",
+              "redis.clients.",
+              "org.elasticsearch.",
+              "com.amazonaws.",
+              "software.amazon.",
+              "com.microsoft.",
+              "org.postgresql.",
+              "com.mysql.",
+              "oracle.jdbc.",
+              "org.h2.",
+              "org.jetbrains.",
+              "kotlin.",
+              "scala.",
+              "groovy.",
+              "clojure."));
+
   public EnhancedExceptionSpanExporter(SpanExporter delegate) {
     this.delegate = delegate;
     this.debugEnabled = LOGGER.isLoggable(Level.FINE);
 
     if (debugEnabled) {
-      LOGGER.fine("🚀 EnhancedExceptionSpanExporter initialized - Python-style format");
+      LOGGER.fine(
+          "🚀 EnhancedExceptionSpanExporter initialized - Python-style format with runtime classification");
     } else {
-      LOGGER.info("EnhancedExceptionSpanExporter initialized with exception enrichment");
+      LOGGER.info(
+          "EnhancedExceptionSpanExporter initialized with exception enrichment and runtime code classification");
     }
   }
 
@@ -253,41 +298,18 @@ public class EnhancedExceptionSpanExporter implements SpanExporter {
   private List<Map<String, Object>> extractStackDetails(String stacktrace) {
     List<Map<String, Object>> stackDetails = new ArrayList<>();
 
-    LOGGER.info("🆕 NEW extractStackDetails method is running!");
     try {
       // Parse stacktrace to get ALL frames first
       List<StackTraceElement> allElements = parseStacktraceForAllCode(stacktrace);
 
-      // Filter to get only application code frames
-      List<StackTraceElement> appCodeElements = new ArrayList<>();
+      // Process ALL frames - we'll determine external vs internal for each
       for (StackTraceElement element : allElements) {
-        if (isApplicationCode(element.getClassName())) {
-          appCodeElements.add(element);
-        } else if (debugEnabled) {
-          LOGGER.fine(
-              "⏭️  Filtering out system class: "
-                  + element.getClassName()
-                  + "."
-                  + element.getMethodName());
-        }
-      }
-
-      if (debugEnabled) {
-        LOGGER.fine(
-            "📊 Found "
-                + appCodeElements.size()
-                + " application code frames (filtered from "
-                + allElements.size()
-                + " total)");
-      }
-
-      // Process only application code frames
-      for (StackTraceElement element : appCodeElements) {
         Map<String, Object> stackDetail = createStackDetailEntry(element);
         if (!stackDetail.isEmpty()) {
           stackDetails.add(stackDetail);
 
           if (debugEnabled) {
+            Boolean isExternal = (Boolean) stackDetail.get("exception.is_file_external");
             LOGGER.fine(
                 "📋 Stack detail: "
                     + element.getMethodName()
@@ -295,9 +317,14 @@ public class EnhancedExceptionSpanExporter implements SpanExporter {
                     + element.getFileName()
                     + ":"
                     + element.getLineNumber()
-                    + ")");
+                    + ") - external: "
+                    + isExternal);
           }
         }
+      }
+
+      if (debugEnabled) {
+        LOGGER.fine("📊 Processed " + stackDetails.size() + " total stack frames");
       }
 
     } catch (Exception e) {
@@ -317,17 +344,23 @@ public class EnhancedExceptionSpanExporter implements SpanExporter {
       stackDetail.put("exception.file", element.getFileName());
       stackDetail.put("exception.line", element.getLineNumber());
       stackDetail.put("exception.language", "java");
-      stackDetail.put("exception.is_file_external", !isApplicationCode(element.getClassName()));
+
+      // Use runtime classification to determine if this is external code
+      boolean isExternal = isExternalCode(element.getClassName());
+      stackDetail.put("exception.is_file_external", isExternal);
 
       if (debugEnabled) {
         LOGGER.fine(
             "   📋 Creating stack detail for: "
                 + element.getClassName()
                 + "."
-                + element.getMethodName());
+                + element.getMethodName()
+                + " (external: "
+                + isExternal
+                + ")");
       }
 
-      // Extract complete function body
+      // Extract complete function body for ALL code (both application and external)
       FunctionExtractionResult functionResult = extractCompleteFunction(element);
 
       if (functionResult.success
@@ -378,6 +411,184 @@ public class EnhancedExceptionSpanExporter implements SpanExporter {
     return stackDetail;
   }
 
+  /**
+   * Determines if a class is external (library) code using multiple runtime detection strategies.
+   * Returns true if the class is from an external library, false if it's application code.
+   */
+  private boolean isExternalCode(String className) {
+    if (className == null) return true;
+
+    // Check cache first for performance
+    Boolean cached = classificationCache.get(className);
+    if (cached != null) {
+      return cached;
+    }
+
+    boolean isExternal = performClassification(className);
+    classificationCache.put(className, isExternal);
+
+    return isExternal;
+  }
+
+  /** Performs the actual classification using multiple strategies */
+  private boolean performClassification(String className) {
+    // Strategy 1: Fast package prefix matching
+    for (String prefix : EXTERNAL_PACKAGE_PREFIXES) {
+      if (className.startsWith(prefix)) {
+        if (debugEnabled) {
+          LOGGER.fine(
+              "   🏷️  Package prefix match: "
+                  + className
+                  + " is EXTERNAL (prefix: "
+                  + prefix
+                  + ")");
+        }
+        return true;
+      }
+    }
+
+    // Strategy 2: ClassLoader-based detection
+    try {
+      Class<?> clazz =
+          Class.forName(className, false, Thread.currentThread().getContextClassLoader());
+      ClassLoader classLoader = clazz.getClassLoader();
+
+      // Bootstrap classloader (null) = JDK core classes
+      if (classLoader == null) {
+        if (debugEnabled) {
+          LOGGER.fine("   🏷️  Bootstrap ClassLoader: " + className + " is EXTERNAL (JDK core)");
+        }
+        return true;
+      }
+
+      // Check ClassLoader hierarchy and name
+      String loaderName = classLoader.getClass().getName();
+      if (loaderName.contains("ExtClassLoader")
+          || loaderName.contains("PlatformClassLoader")
+          || loaderName.contains("BuiltinClassLoader")) {
+        if (debugEnabled) {
+          LOGGER.fine(
+              "   🏷️  System ClassLoader: "
+                  + className
+                  + " is EXTERNAL (loader: "
+                  + loaderName
+                  + ")");
+        }
+        return true;
+      }
+
+      // Strategy 3: CodeSource location analysis
+      ProtectionDomain protectionDomain = clazz.getProtectionDomain();
+      if (protectionDomain != null) {
+        CodeSource codeSource = protectionDomain.getCodeSource();
+        if (codeSource != null) {
+          URL location = codeSource.getLocation();
+          if (location != null) {
+            String path = location.getPath().toLowerCase();
+
+            // Check for Maven/Gradle dependency patterns
+            if (path.contains("/.m2/repository/")
+                || path.contains("/.gradle/caches/")
+                || path.contains("/lib/")
+                || path.contains("/libs/")
+                || path.contains("/dependency/")
+                || path.contains("/dependencies/")) {
+              if (debugEnabled) {
+                LOGGER.fine(
+                    "   🏷️  Dependency path: " + className + " is EXTERNAL (path: " + path + ")");
+              }
+              return true;
+            }
+
+            // Check for application patterns
+            if (path.contains("/target/classes/")
+                || path.contains("/build/classes/")
+                || path.contains("/out/production/")
+                || path.contains("/bin/")
+                || path.contains("/src/")) {
+              if (debugEnabled) {
+                LOGGER.fine(
+                    "   🏷️  Application path: "
+                        + className
+                        + " is APPLICATION (path: "
+                        + path
+                        + ")");
+              }
+              return false;
+            }
+
+            // Check if it's a JAR file in common library locations
+            if (path.endsWith(".jar")) {
+              // Additional heuristics for JAR files
+              if (path.contains("/jre/")
+                  || path.contains("/jdk/")
+                  || path.contains("/java/")
+                  || path.contains("/modules/")) {
+                if (debugEnabled) {
+                  LOGGER.fine(
+                      "   🏷️  JDK JAR: " + className + " is EXTERNAL (path: " + path + ")");
+                }
+                return true;
+              }
+
+              // If JAR is not in application directories, likely external
+              if (!path.contains("/target/")
+                  && !path.contains("/build/")
+                  && !path.contains("/out/")) {
+                if (debugEnabled) {
+                  LOGGER.fine(
+                      "   🏷️  Library JAR: " + className + " is EXTERNAL (path: " + path + ")");
+                }
+                return true;
+              }
+            }
+          }
+        }
+      }
+    } catch (ClassNotFoundException e) {
+      // Class not found, likely a dynamic proxy or generated class
+      if (debugEnabled) {
+        LOGGER.fine("   ⚠️  Class not found: " + className + ", checking naming patterns");
+      }
+    } catch (Exception e) {
+      // Log but don't fail
+      if (debugEnabled) {
+        LOGGER.fine("   ⚠️  Error during classification of " + className + ": " + e.getMessage());
+      }
+    }
+
+    // Strategy 4: Naming pattern detection for generated/proxy classes
+    if (className.contains("$$")
+        || className.contains("$Proxy")
+        || className.contains("$HibernateProxy")
+        || className.contains("CGLIB")
+        || className.contains("ByteBuddy")
+        || className.contains("$auxiliary$")) {
+      if (debugEnabled) {
+        LOGGER.fine("   🏷️  Generated/Proxy class: " + className + " is EXTERNAL");
+      }
+      return true;
+    }
+
+    // Strategy 5: Inner class handling - check parent class
+    if (className.contains("$") && !className.contains("$$")) {
+      String parentClass = className.substring(0, className.lastIndexOf('$'));
+      return isExternalCode(parentClass);
+    }
+
+    // Default: If we can't determine with confidence, assume it's application code
+    // This is safer for APM purposes - better to show more code than hide important application
+    // frames
+    if (debugEnabled) {
+      LOGGER.fine("   🏷️  Default classification: " + className + " is APPLICATION");
+    }
+    return false;
+  }
+
+  private boolean isApplicationCode(String className) {
+    return !isExternalCode(className);
+  }
+
   /** Extract complete function body for a stack trace element */
   private FunctionExtractionResult extractCompleteFunction(StackTraceElement element) {
     FunctionExtractionResult result = new FunctionExtractionResult();
@@ -410,14 +621,6 @@ public class EnhancedExceptionSpanExporter implements SpanExporter {
 
       if (debugEnabled) {
         LOGGER.fine("      ✅ Source file read: " + sourceLines.size() + " lines");
-      }
-
-      // Check if this is application code (skip system classes)
-      if (!isApplicationCode(element.getClassName())) {
-        if (debugEnabled) {
-          LOGGER.fine("      ⏭️  Skipping system class: " + element.getClassName());
-        }
-        return result;
       }
 
       // Find method boundaries
@@ -453,13 +656,6 @@ public class EnhancedExceptionSpanExporter implements SpanExporter {
         if (debugEnabled) {
           LOGGER.fine("      ✅ Method extraction SUCCESS");
           LOGGER.fine("      📝 Body length: " + extractedBody.length() + " chars");
-          LOGGER.fine("      📝 Lines extracted: " + extractedBody.split("\n").length);
-
-          // Show first line preview
-          String[] lines = extractedBody.split("\n");
-          if (lines.length > 0) {
-            LOGGER.fine("      📝 First line: " + lines[0].trim());
-          }
         }
 
       } else {
@@ -656,7 +852,6 @@ public class EnhancedExceptionSpanExporter implements SpanExporter {
     return false;
   }
 
-  
   private int findMethodEndLine(List<String> sourceLines, int methodStartLine) {
     int openBraces = 0;
     boolean foundFirstBrace = false;
@@ -757,7 +952,7 @@ public class EnhancedExceptionSpanExporter implements SpanExporter {
     }
   }
 
-  // Helper classes and methods (reusing from previous implementation)
+  // Helper classes and methods
 
   private static class FunctionExtractionResult {
     boolean success = false;
@@ -848,58 +1043,6 @@ public class EnhancedExceptionSpanExporter implements SpanExporter {
     } catch (Exception e) {
       return null;
     }
-  }
-
-  private boolean isApplicationCodeLine(String stacktraceLine) {
-    if (stacktraceLine == null) return false;
-
-    String[] systemPackages = {
-      // "java.",
-      // "javax.",
-      // "jakarta",
-      // "sun.",
-      // "com.sun.",
-      // "org.springframework.",
-      // "org.apache.",
-      // "io.opentelemetry.",
-      // "org.slf4j.",
-      // "ch.qos.logback.",
-      // "org.junit."
-    };
-
-    for (String systemPackage : systemPackages) {
-      if (stacktraceLine.contains(systemPackage)) {
-        return false;
-      }
-    }
-
-    return true;
-  }
-
-  private boolean isApplicationCode(String className) {
-    if (className == null) return false;
-
-    String[] systemPackages = {
-      // "java.",
-      // "javax.",
-      // "jakarta",
-      // "sun.",
-      // "com.sun.",
-      // "org.springframework.",
-      // "org.apache.",
-      // "io.opentelemetry.",
-      // "org.slf4j.",
-      // "ch.qos.logback.",
-      // "org.junit."
-    };
-
-    for (String systemPackage : systemPackages) {
-      if (className.startsWith(systemPackage)) {
-        return false;
-      }
-    }
-
-    return true;
   }
 
   private List<String> readSourceFile(String className, String fileName) {
@@ -1093,14 +1236,20 @@ public class EnhancedExceptionSpanExporter implements SpanExporter {
       LOGGER.fine("🔚 EnhancedExceptionSpanExporter shutdown");
       LOGGER.fine("   Total spans processed: " + processedSpans);
       LOGGER.fine("   Total spans enhanced: " + enhancedSpans);
+      LOGGER.fine("   Classification cache size: " + classificationCache.size());
     } else {
       LOGGER.info(
           "EnhancedExceptionSpanExporter shutdown - "
               + processedSpans
               + " spans processed, "
               + enhancedSpans
-              + " enhanced");
+              + " enhanced, cache size: "
+              + classificationCache.size());
     }
+
+    // Clear the cache on shutdown
+    classificationCache.clear();
+
     return delegate.shutdown();
   }
 
