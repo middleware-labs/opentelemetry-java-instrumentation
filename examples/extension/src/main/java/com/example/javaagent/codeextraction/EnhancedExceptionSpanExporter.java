@@ -5,6 +5,8 @@
 
 package com.example.javaagent.codeextraction;
 
+import com.example.javaagent.benchmarking.PerformanceBenchmark;
+import com.example.javaagent.config.EnvironmentConfig;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.opentelemetry.api.common.AttributeKey;
 import io.opentelemetry.api.common.Attributes;
@@ -43,6 +45,9 @@ public class EnhancedExceptionSpanExporter implements SpanExporter {
   private static int processedSpans = 0;
   private static int enhancedSpans = 0;
   private final boolean debugEnabled;
+
+  private final ConcurrentHashMap<String, List<String>> sourceFileCache = new ConcurrentHashMap<>();
+  private final int maxCacheSize = 100; // Configurable limit to prevent memory issues
 
   // Cache for code classification results to improve performance
   private final ConcurrentHashMap<String, Boolean> classificationCache = new ConcurrentHashMap<>();
@@ -101,6 +106,7 @@ public class EnhancedExceptionSpanExporter implements SpanExporter {
 
   @Override
   public CompletableResultCode export(Collection<SpanData> spans) {
+    long startTime = System.currentTimeMillis();
     if (debugEnabled) {
       LOGGER.fine("📦 EXPORTING " + spans.size() + " SPANS");
     }
@@ -171,6 +177,8 @@ public class EnhancedExceptionSpanExporter implements SpanExporter {
           "📊 EXPORT SUMMARY: " + processedSpans + " processed, " + enhancedSpans + " enhanced");
     }
 
+    long exportTime = System.currentTimeMillis() - startTime;
+    PerformanceBenchmark.recordExportTime(exportTime);
     return delegate.export(enrichedSpans);
   }
 
@@ -334,7 +342,7 @@ public class EnhancedExceptionSpanExporter implements SpanExporter {
     return stackDetails;
   }
 
-  /** Create a single stack detail entry matching Python format */
+  /** Create a single stack detail. */
   private Map<String, Object> createStackDetailEntry(StackTraceElement element) {
     Map<String, Object> stackDetail = new HashMap<>();
 
@@ -360,43 +368,49 @@ public class EnhancedExceptionSpanExporter implements SpanExporter {
                 + ")");
       }
 
-      // Extract complete function body for ALL code (both application and external)
-      FunctionExtractionResult functionResult = extractCompleteFunction(element);
+      boolean shouldExtractFunctionCode =
+          !isExternal || EnvironmentConfig.isMwOpsaiExtractExternalFunctionCode();
+      if (shouldExtractFunctionCode) {
+        // Extract complete function body for APPLICATION code OR if external extraction is enabled
+        FunctionExtractionResult functionResult = extractCompleteFunction(element);
 
-      if (functionResult.success
-          && functionResult.functionBody != null
-          && !functionResult.functionBody.trim().isEmpty()) {
-        stackDetail.put("exception.start_line", functionResult.startLine);
-        stackDetail.put("exception.end_line", functionResult.endLine);
-        stackDetail.put("exception.function_body", functionResult.functionBody);
+        if (functionResult.success
+            && functionResult.functionBody != null
+            && !functionResult.functionBody.trim().isEmpty()) {
+          stackDetail.put("exception.start_line", functionResult.startLine);
+          stackDetail.put("exception.end_line", functionResult.endLine);
+          stackDetail.put("exception.function_body", functionResult.functionBody);
 
-        if (debugEnabled) {
-          LOGGER.fine(
+          LOGGER.info(
               "   ✅ Function body stored: "
                   + functionResult.functionBody.split("\n").length
                   + " lines");
-          LOGGER.fine(
-              "   📝 First line preview: "
-                  + (functionResult.functionBody.split("\n").length > 0
-                      ? functionResult.functionBody.split("\n")[0].trim()
-                      : "empty"));
+          if (debugEnabled) {
+            LOGGER.fine(
+                "   ✅ Function body stored: "
+                    + functionResult.functionBody.split("\n").length
+                    + " lines");
+          }
+        } else {
+          if (debugEnabled) {
+            LOGGER.fine("   ❌ Function extraction failed");
+          }
+          // Add placeholder values for failed extraction
+          stackDetail.put("exception.start_line", element.getLineNumber());
+          stackDetail.put("exception.end_line", element.getLineNumber());
+          stackDetail.put("exception.function_body", "// Function body extraction failed");
         }
       } else {
-        if (debugEnabled) {
-          LOGGER.fine("   ❌ Function extraction failed:");
-          LOGGER.fine("      Success: " + functionResult.success);
-          LOGGER.fine(
-              "      Body empty: "
-                  + (functionResult.functionBody == null
-                      || functionResult.functionBody.trim().isEmpty()));
-          LOGGER.fine("      Start line: " + functionResult.startLine);
-          LOGGER.fine("      End line: " + functionResult.endLine);
-        }
-
-        // Add placeholder values for debugging
-        stackDetail.put("exception.start_line", functionResult.startLine);
-        stackDetail.put("exception.end_line", functionResult.endLine);
+        // For external code when feature flag is disabled, just add basic line info
+        stackDetail.put("exception.start_line", element.getLineNumber());
+        stackDetail.put("exception.end_line", element.getLineNumber());
         stackDetail.put("exception.function_body", "");
+
+        if (debugEnabled) {
+          LOGGER.fine(
+              "   ⚡ Skipped source extraction for external library (feature flag disabled): "
+                  + element.getClassName());
+        }
       }
 
     } catch (Exception e) {
@@ -432,6 +446,8 @@ public class EnhancedExceptionSpanExporter implements SpanExporter {
 
   /** Performs the actual classification using multiple strategies */
   private boolean performClassification(String className) {
+
+    long startTime = System.currentTimeMillis();
     // Strategy 1: Fast package prefix matching
     for (String prefix : EXTERNAL_PACKAGE_PREFIXES) {
       if (className.startsWith(prefix)) {
@@ -582,6 +598,9 @@ public class EnhancedExceptionSpanExporter implements SpanExporter {
     if (debugEnabled) {
       LOGGER.fine("   🏷️  Default classification: " + className + " is APPLICATION");
     }
+
+    long classificationTime = System.currentTimeMillis() - startTime;
+    PerformanceBenchmark.recordClassificationTime(classificationTime);
     return false;
   }
 
@@ -591,6 +610,7 @@ public class EnhancedExceptionSpanExporter implements SpanExporter {
 
   /** Extract complete function body for a stack trace element */
   private FunctionExtractionResult extractCompleteFunction(StackTraceElement element) {
+    long startTime = System.currentTimeMillis();
     FunctionExtractionResult result = new FunctionExtractionResult();
 
     try {
@@ -669,7 +689,8 @@ public class EnhancedExceptionSpanExporter implements SpanExporter {
     } catch (Exception e) {
       LOGGER.log(Level.WARNING, "Exception during function extraction: " + e.getMessage(), e);
     }
-
+    long extractionTime = System.currentTimeMillis() - startTime;
+    PerformanceBenchmark.recordMethodExtractionTime(extractionTime);
     return result;
   }
 
@@ -944,7 +965,10 @@ public class EnhancedExceptionSpanExporter implements SpanExporter {
 
   /** Convert stack details to JSON string */
   private String convertStackDetailsToJson(List<Map<String, Object>> stackDetails) {
+    long startTime = System.currentTimeMillis();
     try {
+      long jsonTime = System.currentTimeMillis() - startTime;
+      PerformanceBenchmark.recordJsonSerializationTime(jsonTime);
       return objectMapper.writeValueAsString(stackDetails);
     } catch (Exception e) {
       LOGGER.log(Level.WARNING, "Error converting stack details to JSON: " + e.getMessage(), e);
@@ -1046,7 +1070,31 @@ public class EnhancedExceptionSpanExporter implements SpanExporter {
   }
 
   private List<String> readSourceFile(String className, String fileName) {
+    long startTime = System.currentTimeMillis();
+
     try {
+      // Create cache key
+      String cacheKey = className + "#" + fileName;
+
+      // Check cache first
+      List<String> cachedContent = sourceFileCache.get(cacheKey);
+      if (cachedContent != null) {
+        long sourceReadTime = System.currentTimeMillis() - startTime;
+        PerformanceBenchmark.recordSourceReadTime(sourceReadTime);
+
+        if (debugEnabled) {
+          LOGGER.fine(
+              "✅ Source file cache HIT for: " + fileName + " (took " + sourceReadTime + "ms)");
+        }
+        return cachedContent;
+      }
+
+      if (debugEnabled) {
+        LOGGER.fine("❌ Source file cache MISS for: " + fileName + " - reading from disk");
+      }
+
+      List<String> sourceLines = Collections.emptyList();
+
       // 1. Try local project source paths (your app code)
       String[] localPaths = {"src/main/java", "src/java", "src"};
       for (String basePath : localPaths) {
@@ -1055,43 +1103,91 @@ public class EnhancedExceptionSpanExporter implements SpanExporter {
           if (debugEnabled) {
             LOGGER.fine("✅ Found source in local project: " + sourceFile);
           }
-          return Files.readAllLines(sourceFile);
+          sourceLines = Files.readAllLines(sourceFile);
+          break; // Found it, stop searching
         }
       }
 
-      // 2. Try to find Spring Framework sources (if available)
-      if (className.startsWith("org.springframework.")) {
-        List<String> springSource = tryFindSpringSource(className, fileName);
-        if (!springSource.isEmpty()) {
-          return springSource;
-        }
+      // 2. Try to find Spring Framework sources (if available) - only if external extraction
+      // enabled
+      if (sourceLines.isEmpty()
+          && EnvironmentConfig.isMwOpsaiExtractExternalFunctionCode()
+          && className.startsWith("org.springframework.")) {
+        sourceLines = tryFindSpringSource(className, fileName);
       }
 
-      // 3. Try to find JDK sources (if available)
-      if (className.startsWith("java.") || className.startsWith("jdk.")) {
-        List<String> jdkSource = tryFindJdkSource(className, fileName);
-        if (!jdkSource.isEmpty()) {
-          return jdkSource;
-        }
+      // 3. Try to find JDK sources (if available) - only if external extraction enabled
+      if (sourceLines.isEmpty()
+          && EnvironmentConfig.isMwOpsaiExtractExternalFunctionCode()
+          && (className.startsWith("java.") || className.startsWith("jdk."))) {
+        sourceLines = tryFindJdkSource(className, fileName);
       }
 
-      // 4. Try Maven/Gradle dependencies with sources
-      List<String> dependencySource = tryFindDependencySource(className, fileName);
-      if (!dependencySource.isEmpty()) {
-        return dependencySource;
+      // 4. Try Maven/Gradle dependencies with sources - only if external extraction enabled
+      if (sourceLines.isEmpty() && EnvironmentConfig.isMwOpsaiExtractExternalFunctionCode()) {
+        sourceLines = tryFindDependencySource(className, fileName);
       }
+
+      // Cache the result (even if empty) to avoid repeated failed lookups
+      if (sourceFileCache.size() < maxCacheSize) {
+        sourceFileCache.put(cacheKey, sourceLines);
+        if (debugEnabled) {
+          LOGGER.fine(
+              "💾 Cached source file: "
+                  + cacheKey
+                  + " (cache size: "
+                  + sourceFileCache.size()
+                  + "/"
+                  + maxCacheSize
+                  + ")");
+        }
+      } else if (debugEnabled) {
+        LOGGER.fine("⚠️ Source file cache full, not caching: " + cacheKey);
+      }
+
+      long sourceReadTime = System.currentTimeMillis() - startTime;
+      PerformanceBenchmark.recordSourceReadTime(sourceReadTime);
 
       if (debugEnabled) {
-        LOGGER.fine("❌ No source found for: " + className + " (" + fileName + ")");
+        if (!sourceLines.isEmpty()) {
+          LOGGER.fine(
+              "✅ Source file read from disk: "
+                  + fileName
+                  + " ("
+                  + sourceLines.size()
+                  + " lines, took "
+                  + sourceReadTime
+                  + "ms)");
+        } else {
+          LOGGER.fine(
+              "❌ No source found for: "
+                  + className
+                  + " ("
+                  + fileName
+                  + ") (took "
+                  + sourceReadTime
+                  + "ms)");
+        }
       }
+
+      return sourceLines;
 
     } catch (Exception e) {
-      if (debugEnabled) {
-        LOGGER.fine("❌ Error reading source for " + className + ": " + e.getMessage());
-      }
-    }
+      long sourceReadTime = System.currentTimeMillis() - startTime;
+      PerformanceBenchmark.recordSourceReadTime(sourceReadTime);
 
-    return Collections.emptyList();
+      if (debugEnabled) {
+        LOGGER.fine(
+            "❌ Error reading source for "
+                + className
+                + ": "
+                + e.getMessage()
+                + " (took "
+                + sourceReadTime
+                + "ms)");
+      }
+      return Collections.emptyList();
+    }
   }
 
   private List<String> tryFindJdkSource(String className, String fileName) {
@@ -1237,6 +1333,7 @@ public class EnhancedExceptionSpanExporter implements SpanExporter {
       LOGGER.fine("   Total spans processed: " + processedSpans);
       LOGGER.fine("   Total spans enhanced: " + enhancedSpans);
       LOGGER.fine("   Classification cache size: " + classificationCache.size());
+      LOGGER.fine("   Source file cache size: " + sourceFileCache.size()); // ⭐ NEW
     } else {
       LOGGER.info(
           "EnhancedExceptionSpanExporter shutdown - "
@@ -1244,11 +1341,13 @@ public class EnhancedExceptionSpanExporter implements SpanExporter {
               + " spans processed, "
               + enhancedSpans
               + " enhanced, cache size: "
-              + classificationCache.size());
+              + classificationCache.size()
+              + ", source cache: "
+              + sourceFileCache.size()); // ⭐ NEW
     }
 
-    // Clear the cache on shutdown
-    classificationCache.clear();
+    // ⭐ NEW: Clear the source file cache on shutdown
+    sourceFileCache.clear();
 
     return delegate.shutdown();
   }

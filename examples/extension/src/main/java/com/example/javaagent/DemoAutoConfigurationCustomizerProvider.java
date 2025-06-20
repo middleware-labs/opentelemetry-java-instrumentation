@@ -62,7 +62,8 @@ public class DemoAutoConfigurationCustomizerProvider
 
   /** Customize the span exporter to wrap it with our enhanced exception exporter */
   private SpanExporter customizeSpanExporter(SpanExporter spanExporter, ConfigProperties config) {
-    if (!EnvironmentConfig.isMwApmCollectTraces()) {
+    if (!EnvironmentConfig.isMwApmCollectTraces() || !EnvironmentConfig.isMwOpsAISupportEnable()) {
+      LOGGER.info("🔧 Using the default span exporter");
       return spanExporter;
     }
 
