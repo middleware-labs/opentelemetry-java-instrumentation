@@ -33,7 +33,11 @@ public class EnvironmentConfig {
     MW_CUSTOM_RESOURCE_ATTRIBUTE(null),
     MW_LOG_LEVEL(null),
     MW_ENABLE_GZIP("true"),
-    MW_AGENT("true");
+    MW_AGENT("true"),
+    MW_VCS_COMMIT_SHA(null),
+    MW_VCS_REPOSITORY_URL(""),
+    MW_OPSAI_SUPPORT("true"),
+    MW_OPSAI_EXTRACT_EXTERNAL_FUNCTION_CODE("false");
     private final String defaultValue;
 
     EnvVar(String defaultValue) {
@@ -113,6 +117,14 @@ public class EnvironmentConfig {
     return getBoolean(EnvVar.MW_DISABLE_TELEMETRY);
   }
 
+  public static boolean isMwOpsAISupportEnable() {
+    return getBoolean(EnvVar.MW_OPSAI_SUPPORT);
+  }
+
+  public static boolean isMwOpsaiExtractExternalFunctionCode() {
+    return getBoolean(EnvVar.MW_OPSAI_EXTRACT_EXTERNAL_FUNCTION_CODE);
+  }
+
   public static String getMwTarget() {
     return get(EnvVar.MW_TARGET);
   }
@@ -139,5 +151,13 @@ public class EnvironmentConfig {
 
   public static String getMwLogLevel() {
     return get(EnvVar.MW_LOG_LEVEL);
+  }
+
+  public static String getMwVcsCommitSha() {
+    return get(EnvVar.MW_VCS_COMMIT_SHA);
+  }
+
+  public static String getMwVcsRepositoryUrl() {
+    return get(EnvVar.MW_VCS_REPOSITORY_URL);
   }
 }
