@@ -18,6 +18,11 @@ jobs:
           java-version: '17'
           distribution: 'adopt'
 
+      - name: Spotless Linting
+        run: |
+          cd examples/extension
+          ./gradlew :spotlessApply
+
       - name: Build JAR
         run: |
           cd examples/extension
