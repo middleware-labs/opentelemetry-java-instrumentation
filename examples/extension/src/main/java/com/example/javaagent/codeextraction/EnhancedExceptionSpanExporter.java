@@ -96,7 +96,7 @@ public class EnhancedExceptionSpanExporter implements SpanExporter {
     this.debugEnabled = LOGGER.isLoggable(Level.FINE);
 
     if (debugEnabled) {
-      LOGGER.fine(
+      LOGGER.finest(
           "🚀 EnhancedExceptionSpanExporter initialized - Python-style format with runtime classification");
     } else {
       LOGGER.info(
@@ -108,7 +108,7 @@ public class EnhancedExceptionSpanExporter implements SpanExporter {
   public CompletableResultCode export(Collection<SpanData> spans) {
     long startTime = System.currentTimeMillis();
     if (debugEnabled) {
-      LOGGER.fine("📦 EXPORTING " + spans.size() + " SPANS");
+      LOGGER.fine("\n📦 EXPORTING " + spans.size() + " SPANS \n");
     }
 
     List<SpanData> enrichedSpans = new ArrayList<>();
@@ -118,14 +118,14 @@ public class EnhancedExceptionSpanExporter implements SpanExporter {
 
       if (hasExceptions(span)) {
         if (debugEnabled) {
-          LOGGER.fine("🔥 FOUND EXCEPTION SPAN: " + span.getName());
+          LOGGER.fine("\n 🔥 FOUND EXCEPTION SPAN: \n" + span.getName());
         }
 
         SpanData enrichedSpan = enrichSpanWithStackDetails(span);
         if (enrichedSpan != span) {
           enhancedSpans++;
           if (debugEnabled) {
-            LOGGER.fine("✅ SUCCESSFULLY ENRICHED SPAN #" + enhancedSpans);
+            LOGGER.fine("\n ✅ SUCCESSFULLY ENRICHED SPAN #\n" + enhancedSpans);
 
             // Debug: Show what's actually being exported
             List<EventData> events = enrichedSpan.getEvents();
@@ -134,12 +134,12 @@ public class EnhancedExceptionSpanExporter implements SpanExporter {
                 String stackDetails =
                     event.getAttributes().get(AttributeKey.stringKey("exception.stack_details"));
                 if (stackDetails != null && !stackDetails.equals("[]")) {
-                  LOGGER.fine("🎉 CONFIRMED: exception.stack_details present in exported span");
-                  LOGGER.fine("📏 Stack details length: " + stackDetails.length() + " characters");
+                  LOGGER.fine("\n🎉 CONFIRMED: exception.stack_details present in exported span\n");
+                  LOGGER.fine("\n📏 Stack details length: " + stackDetails.length() + " characters\n");
 
                   // Show a preview of the function body
                   if (stackDetails.contains("exception.function_body")) {
-                    LOGGER.fine("📝 Contains function body: ✅");
+                    LOGGER.fine("\n📝 Contains function body: ✅\n");
 
                     // Extract and show first few characters of function body
                     int bodyStart = stackDetails.indexOf("\"exception.function_body\":\"") + 27;
@@ -148,12 +148,12 @@ public class EnhancedExceptionSpanExporter implements SpanExporter {
                           Math.min(bodyStart + 100, stackDetails.indexOf("\"", bodyStart));
                       if (bodyEnd > bodyStart) {
                         String bodyPreview = stackDetails.substring(bodyStart, bodyEnd);
-                        LOGGER.fine("📝 Function body preview: " + bodyPreview + "...");
+                        LOGGER.fine("\n📝 Function body preview: " + bodyPreview + "...\n");
                       }
                     }
                   }
                 } else {
-                  LOGGER.fine("❌ WARNING: exception.stack_details is empty or missing");
+                  LOGGER.fine("\n❌ WARNING: exception.stack_details is empty or missing\n");
                 }
                 break;
               }
@@ -163,7 +163,7 @@ public class EnhancedExceptionSpanExporter implements SpanExporter {
           enrichedSpans.add(enrichedSpan);
         } else {
           if (debugEnabled) {
-            LOGGER.fine("❌ Failed to enrich span");
+            LOGGER.fine("\n❌ Failed to enrich span\n");
           }
           enrichedSpans.add(span);
         }
@@ -174,7 +174,7 @@ public class EnhancedExceptionSpanExporter implements SpanExporter {
 
     if (debugEnabled) {
       LOGGER.fine(
-          "📊 EXPORT SUMMARY: " + processedSpans + " processed, " + enhancedSpans + " enhanced");
+          "\n📊 EXPORT SUMMARY: " + processedSpans + " processed, " + enhancedSpans + " enhanced\n");
     }
 
     long exportTime = System.currentTimeMillis() - startTime;
@@ -186,7 +186,7 @@ public class EnhancedExceptionSpanExporter implements SpanExporter {
   private SpanData enrichSpanWithStackDetails(SpanData originalSpan) {
     try {
       if (debugEnabled) {
-        LOGGER.fine("🔍 ENRICHING SPAN WITH STACK DETAILS: " + originalSpan.getName());
+        LOGGER.fine("\n🔍 ENRICHING SPAN WITH STACK DETAILS: \n" + originalSpan.getName());
       }
 
       List<EventData> originalEvents = originalSpan.getEvents();
@@ -197,7 +197,7 @@ public class EnhancedExceptionSpanExporter implements SpanExporter {
       for (EventData event : originalEvents) {
         if (isExceptionEvent(event)) {
           if (debugEnabled) {
-            LOGGER.fine("🚨 Processing exception event: " + event.getName());
+            LOGGER.fine("\n🚨 Processing exception event: \n" + event.getName());
           }
 
           EventData enrichedEvent = createEnrichedExceptionEvent(event);
@@ -205,7 +205,7 @@ public class EnhancedExceptionSpanExporter implements SpanExporter {
             enrichedEvents.add(enrichedEvent);
             eventEnhanced = true;
             if (debugEnabled) {
-              LOGGER.fine("✅ Exception event enhanced with stack details");
+              LOGGER.fine("\n✅ Exception event enhanced with stack details\n");
             }
           } else {
             enrichedEvents.add(event); // Keep original if enhancement failed
@@ -240,7 +240,7 @@ public class EnhancedExceptionSpanExporter implements SpanExporter {
 
       if (exceptionStacktrace == null || exceptionStacktrace.isEmpty()) {
         if (debugEnabled) {
-          LOGGER.fine("❌ No stacktrace found in exception event");
+          LOGGER.fine("\n❌ No stacktrace found in exception event\n");
         }
         return null;
       }
@@ -250,13 +250,13 @@ public class EnhancedExceptionSpanExporter implements SpanExporter {
 
       if (stackDetails.isEmpty()) {
         if (debugEnabled) {
-          LOGGER.fine("❌ No application code found in stacktrace");
+          LOGGER.fine("\n❌ No application code found in stacktrace\n");
         }
         return null;
       }
 
       if (debugEnabled) {
-        LOGGER.fine("📝 Extracted " + stackDetails.size() + " stack detail entries");
+        LOGGER.fine("\n📝 Extracted " + stackDetails.size() + " stack detail entries\n");
       }
 
       // Convert stack details to JSON string
@@ -264,8 +264,8 @@ public class EnhancedExceptionSpanExporter implements SpanExporter {
 
       // Debug: Show the final JSON being exported
       if (debugEnabled) {
-        LOGGER.fine("🎯 FINAL JSON BEING EXPORTED:");
-        LOGGER.fine("exception.stack_details = " + stackDetailsJson);
+        LOGGER.fine("\n🎯 FINAL JSON BEING EXPORTED:\n");
+        LOGGER.fine("\nexception.stack_details = \n" + stackDetailsJson);
       }
 
       // Create new attributes with original data + stack_details
@@ -319,7 +319,7 @@ public class EnhancedExceptionSpanExporter implements SpanExporter {
           if (debugEnabled) {
             Boolean isExternal = (Boolean) stackDetail.get("exception.is_file_external");
             LOGGER.fine(
-                "📋 Stack detail: "
+                "\n📋 Stack detail: "
                     + element.getMethodName()
                     + " ("
                     + element.getFileName()
@@ -332,7 +332,7 @@ public class EnhancedExceptionSpanExporter implements SpanExporter {
       }
 
       if (debugEnabled) {
-        LOGGER.fine("📊 Processed " + stackDetails.size() + " total stack frames");
+        LOGGER.fine("\n📊 Processed " + stackDetails.size() + " total stack frames\n");
       }
 
     } catch (Exception e) {
@@ -359,13 +359,13 @@ public class EnhancedExceptionSpanExporter implements SpanExporter {
 
       if (debugEnabled) {
         LOGGER.fine(
-            "   📋 Creating stack detail for: "
+            "\n   📋 Creating stack detail for: "
                 + element.getClassName()
                 + "."
                 + element.getMethodName()
                 + " (external: "
                 + isExternal
-                + ")");
+                + ")\n");
       }
 
       boolean shouldExtractFunctionCode =
@@ -382,18 +382,18 @@ public class EnhancedExceptionSpanExporter implements SpanExporter {
           stackDetail.put("exception.function_body", functionResult.functionBody);
 
           LOGGER.info(
-              "   ✅ Function body stored: "
+              "\n   ✅ Function body stored: "
                   + functionResult.functionBody.split("\n").length
-                  + " lines");
+                  + " lines\n");
           if (debugEnabled) {
             LOGGER.fine(
-                "   ✅ Function body stored: "
+                "\n   ✅ Function body stored: "
                     + functionResult.functionBody.split("\n").length
-                    + " lines");
+                    + " lines\n");
           }
         } else {
           if (debugEnabled) {
-            LOGGER.fine("   ❌ Function extraction failed");
+            LOGGER.fine("   \n❌ Function extraction failed\n");
           }
           // Add placeholder values for failed extraction
           stackDetail.put("exception.start_line", element.getLineNumber());
@@ -408,7 +408,7 @@ public class EnhancedExceptionSpanExporter implements SpanExporter {
 
         if (debugEnabled) {
           LOGGER.fine(
-              "   ⚡ Skipped source extraction for external library (feature flag disabled): "
+              "\n   ⚡ Skipped source extraction for external library (feature flag disabled): \n"
                   + element.getClassName());
         }
       }
@@ -453,11 +453,11 @@ public class EnhancedExceptionSpanExporter implements SpanExporter {
       if (className.startsWith(prefix)) {
         if (debugEnabled) {
           LOGGER.fine(
-              "   🏷️  Package prefix match: "
+              "\n 🏷️  Package prefix match: "
                   + className
                   + " is EXTERNAL (prefix: "
                   + prefix
-                  + ")");
+                  + ")\n");
         }
         return true;
       }
@@ -472,7 +472,7 @@ public class EnhancedExceptionSpanExporter implements SpanExporter {
       // Bootstrap classloader (null) = JDK core classes
       if (classLoader == null) {
         if (debugEnabled) {
-          LOGGER.fine("   🏷️  Bootstrap ClassLoader: " + className + " is EXTERNAL (JDK core)");
+          LOGGER.fine("   \n🏷️  Bootstrap ClassLoader: " + className + " is EXTERNAL (JDK core)\n");
         }
         return true;
       }
@@ -484,11 +484,11 @@ public class EnhancedExceptionSpanExporter implements SpanExporter {
           || loaderName.contains("BuiltinClassLoader")) {
         if (debugEnabled) {
           LOGGER.fine(
-              "   🏷️  System ClassLoader: "
+              "\n   🏷️  System ClassLoader: "
                   + className
                   + " is EXTERNAL (loader: "
                   + loaderName
-                  + ")");
+                  + ")@n");
         }
         return true;
       }
@@ -511,7 +511,7 @@ public class EnhancedExceptionSpanExporter implements SpanExporter {
                 || path.contains("/dependencies/")) {
               if (debugEnabled) {
                 LOGGER.fine(
-                    "   🏷️  Dependency path: " + className + " is EXTERNAL (path: " + path + ")");
+                    "\n   🏷️  Dependency path: " + className + " is EXTERNAL (path: " + path + ")\n");
               }
               return true;
             }
@@ -524,11 +524,11 @@ public class EnhancedExceptionSpanExporter implements SpanExporter {
                 || path.contains("/src/")) {
               if (debugEnabled) {
                 LOGGER.fine(
-                    "   🏷️  Application path: "
+                    "\n   🏷️  Application path: "
                         + className
                         + " is APPLICATION (path: "
                         + path
-                        + ")");
+                        + ")\n");
               }
               return false;
             }
@@ -542,7 +542,7 @@ public class EnhancedExceptionSpanExporter implements SpanExporter {
                   || path.contains("/modules/")) {
                 if (debugEnabled) {
                   LOGGER.fine(
-                      "   🏷️  JDK JAR: " + className + " is EXTERNAL (path: " + path + ")");
+                      "\n   🏷️  JDK JAR: " + className + " is EXTERNAL (path: " + path + ")\n");
                 }
                 return true;
               }
@@ -553,7 +553,7 @@ public class EnhancedExceptionSpanExporter implements SpanExporter {
                   && !path.contains("/out/")) {
                 if (debugEnabled) {
                   LOGGER.fine(
-                      "   🏷️  Library JAR: " + className + " is EXTERNAL (path: " + path + ")");
+                      "\n   🏷️  Library JAR: " + className + " is EXTERNAL (path: " + path + ")\n");
                 }
                 return true;
               }
@@ -564,12 +564,12 @@ public class EnhancedExceptionSpanExporter implements SpanExporter {
     } catch (ClassNotFoundException e) {
       // Class not found, likely a dynamic proxy or generated class
       if (debugEnabled) {
-        LOGGER.fine("   ⚠️  Class not found: " + className + ", checking naming patterns");
+        LOGGER.fine("\n   ⚠️  Class not found: " + className + ", checking naming patterns\n");
       }
     } catch (Exception e) {
       // Log but don't fail
       if (debugEnabled) {
-        LOGGER.fine("   ⚠️  Error during classification of " + className + ": " + e.getMessage());
+        LOGGER.fine("   \n⚠️  Error during classification of " + className + ": \n" + e.getMessage());
       }
     }
 
@@ -581,7 +581,7 @@ public class EnhancedExceptionSpanExporter implements SpanExporter {
         || className.contains("ByteBuddy")
         || className.contains("$auxiliary$")) {
       if (debugEnabled) {
-        LOGGER.fine("   🏷️  Generated/Proxy class: " + className + " is EXTERNAL");
+        LOGGER.fine("   \n🏷️  Generated/Proxy class: " + className + " is EXTERNAL\n");
       }
       return true;
     }
@@ -596,7 +596,7 @@ public class EnhancedExceptionSpanExporter implements SpanExporter {
     // This is safer for APM purposes - better to show more code than hide important application
     // frames
     if (debugEnabled) {
-      LOGGER.fine("   🏷️  Default classification: " + className + " is APPLICATION");
+      LOGGER.fine("   \n🏷️  Default classification: " + className + " is APPLICATION\n");
     }
 
     long classificationTime = System.currentTimeMillis() - startTime;
@@ -616,16 +616,16 @@ public class EnhancedExceptionSpanExporter implements SpanExporter {
     try {
       if (debugEnabled) {
         LOGGER.fine(
-            "   🔍 Extracting function for: "
+            "\n   🔍 Extracting function for: "
                 + element.getClassName()
                 + "."
                 + element.getMethodName());
-        LOGGER.fine("      File: " + element.getFileName() + ", Line: " + element.getLineNumber());
+        LOGGER.fine("\n      File: " + element.getFileName() + ", Line: " + element.getLineNumber());
       }
 
       if (element.getFileName() == null || element.getLineNumber() <= 0) {
         if (debugEnabled) {
-          LOGGER.fine("      ❌ Invalid file name or line number");
+          LOGGER.fine("      \n❌ Invalid file name or line number\n");
         }
         return result;
       }
@@ -634,13 +634,13 @@ public class EnhancedExceptionSpanExporter implements SpanExporter {
       List<String> sourceLines = readSourceFile(element.getClassName(), element.getFileName());
       if (sourceLines.isEmpty()) {
         if (debugEnabled) {
-          LOGGER.fine("      ❌ Could not read source file");
+          LOGGER.fine("      \n❌ Could not read source file\n");
         }
         return result;
       }
 
       if (debugEnabled) {
-        LOGGER.fine("      ✅ Source file read: " + sourceLines.size() + " lines");
+        LOGGER.fine("      \n✅ Source file read: " + sourceLines.size() + " lines\n");
       }
 
       // Find method boundaries
@@ -653,9 +653,9 @@ public class EnhancedExceptionSpanExporter implements SpanExporter {
 
         if (debugEnabled) {
           LOGGER.fine(
-              "      📏 Method boundaries found: "
+              "\n📏 Method boundaries found: "
                   + boundaries.startLine
-                  + "-"
+                  + "-\n"
                   + boundaries.endLine);
         }
 
@@ -674,13 +674,13 @@ public class EnhancedExceptionSpanExporter implements SpanExporter {
         result.functionBody = extractedBody;
 
         if (debugEnabled) {
-          LOGGER.fine("      ✅ Method extraction SUCCESS");
-          LOGGER.fine("      📝 Body length: " + extractedBody.length() + " chars");
+          LOGGER.fine("      \n✅ Method extraction SUCCESS\n");
+          LOGGER.fine("      \n📝 Body length: " + extractedBody.length() + " chars\n");
         }
 
       } else {
         if (debugEnabled) {
-          LOGGER.fine("      ❌ Method boundaries not found, falling back to context");
+          LOGGER.fine("      \n❌ Method boundaries not found, falling back to context\n");
         }
         // Fallback to context lines
         result = extractContextLines(sourceLines, element.getLineNumber());
@@ -703,7 +703,7 @@ public class EnhancedExceptionSpanExporter implements SpanExporter {
       if (sourceLines == null || sourceLines.isEmpty() || methodName == null) {
         if (debugEnabled) {
           LOGGER.fine(
-              "❌ Invalid input: sourceLines="
+              "\n❌ Invalid input: sourceLines="
                   + (sourceLines != null ? sourceLines.size() : "null")
                   + ", methodName="
                   + methodName);
@@ -715,7 +715,7 @@ public class EnhancedExceptionSpanExporter implements SpanExporter {
       if (errorLine <= 0 || errorLine > sourceLines.size()) {
         if (debugEnabled) {
           LOGGER.fine(
-              "❌ Error line "
+              "\n❌ Error line "
                   + errorLine
                   + " is out of bounds for file with "
                   + sourceLines.size()
@@ -727,7 +727,7 @@ public class EnhancedExceptionSpanExporter implements SpanExporter {
 
       if (debugEnabled) {
         LOGGER.fine(
-            "🔍 Searching for method '"
+            "\n🔍 Searching for method '"
                 + methodName
                 + "' around line "
                 + errorLine
@@ -746,7 +746,7 @@ public class EnhancedExceptionSpanExporter implements SpanExporter {
         if (isMethodDeclaration(line, methodName)) {
           methodStartLine = i + 1; // Convert to 1-based
           if (debugEnabled) {
-            LOGGER.fine("✅ Found method declaration at line " + methodStartLine + ": " + line);
+            LOGGER.fine("\n✅ Found method declaration at line " + methodStartLine + ": " + line);
           }
           break;
         }
@@ -754,7 +754,7 @@ public class EnhancedExceptionSpanExporter implements SpanExporter {
         // Stop if we hit another method or class
         if (isAnotherMethodOrClassDeclaration(line, methodName)) {
           if (debugEnabled) {
-            LOGGER.fine("⏹️ Hit another method/class declaration, stopping search");
+            LOGGER.fine("\n⏹️ Hit another method/class declaration, stopping search\n");
           }
           break;
         }
@@ -762,7 +762,7 @@ public class EnhancedExceptionSpanExporter implements SpanExporter {
 
       if (methodStartLine == -1) {
         if (debugEnabled) {
-          LOGGER.fine("❌ Method declaration not found, trying entire file search");
+          LOGGER.fine("\n❌ Method declaration not found, trying entire file search\n");
         }
         return findMethodInEntireFile(sourceLines, methodName);
       }
@@ -776,11 +776,11 @@ public class EnhancedExceptionSpanExporter implements SpanExporter {
         boundaries.endLine = methodEndLine;
 
         if (debugEnabled) {
-          LOGGER.fine("✅ Method boundaries found: " + methodStartLine + "-" + methodEndLine);
+          LOGGER.fine("\n✅ Method boundaries found: " + methodStartLine + "-\n" + methodEndLine);
         }
       } else {
         if (debugEnabled) {
-          LOGGER.fine("❌ Method end not found or out of bounds");
+          LOGGER.fine("\n❌ Method end not found or out of bounds\n");
         }
       }
 
@@ -796,7 +796,7 @@ public class EnhancedExceptionSpanExporter implements SpanExporter {
 
     try {
       if (debugEnabled) {
-        LOGGER.fine("🔍 Searching entire file for method: " + methodName);
+        LOGGER.fine("\n🔍 Searching entire file for method: \n" + methodName);
       }
 
       for (int i = 0; i < sourceLines.size(); i++) {
@@ -813,7 +813,7 @@ public class EnhancedExceptionSpanExporter implements SpanExporter {
 
             if (debugEnabled) {
               LOGGER.fine(
-                  "✅ Found method in entire file search: " + methodStartLine + "-" + methodEndLine);
+                  "\n✅ Found method in entire file search: " + methodStartLine + "-\n" + methodEndLine);
             }
             break;
           }
@@ -1333,7 +1333,7 @@ public class EnhancedExceptionSpanExporter implements SpanExporter {
       LOGGER.fine("   Total spans processed: " + processedSpans);
       LOGGER.fine("   Total spans enhanced: " + enhancedSpans);
       LOGGER.fine("   Classification cache size: " + classificationCache.size());
-      LOGGER.fine("   Source file cache size: " + sourceFileCache.size()); // ⭐ NEW
+      LOGGER.fine("   Source file cache size: " + sourceFileCache.size()); 
     } else {
       LOGGER.info(
           "EnhancedExceptionSpanExporter shutdown - "
@@ -1343,10 +1343,9 @@ public class EnhancedExceptionSpanExporter implements SpanExporter {
               + " enhanced, cache size: "
               + classificationCache.size()
               + ", source cache: "
-              + sourceFileCache.size()); // ⭐ NEW
+              + sourceFileCache.size()); 
     }
 
-    // ⭐ NEW: Clear the source file cache on shutdown
     sourceFileCache.clear();
 
     return delegate.shutdown();
