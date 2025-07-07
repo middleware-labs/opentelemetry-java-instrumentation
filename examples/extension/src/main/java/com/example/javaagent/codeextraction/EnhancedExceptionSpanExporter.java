@@ -398,7 +398,7 @@ public class EnhancedExceptionSpanExporter implements SpanExporter {
           // Add placeholder values for failed extraction
           stackDetail.put("exception.start_line", element.getLineNumber());
           stackDetail.put("exception.end_line", element.getLineNumber());
-          stackDetail.put("exception.function_body", "// Function body extraction failed");
+          stackDetail.put("exception.function_body", "");
         }
       } else {
         // For external code when feature flag is disabled, just add basic line info
