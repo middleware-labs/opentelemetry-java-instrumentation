@@ -135,7 +135,8 @@ public class EnhancedExceptionSpanExporter implements SpanExporter {
                     event.getAttributes().get(AttributeKey.stringKey("exception.stack_details"));
                 if (stackDetails != null && !stackDetails.equals("[]")) {
                   LOGGER.fine("\n🎉 CONFIRMED: exception.stack_details present in exported span\n");
-                  LOGGER.fine("\n📏 Stack details length: " + stackDetails.length() + " characters\n");
+                  LOGGER.fine(
+                      "\n📏 Stack details length: " + stackDetails.length() + " characters\n");
 
                   // Show a preview of the function body
                   if (stackDetails.contains("exception.function_body")) {
@@ -174,7 +175,11 @@ public class EnhancedExceptionSpanExporter implements SpanExporter {
 
     if (debugEnabled) {
       LOGGER.fine(
-          "\n📊 EXPORT SUMMARY: " + processedSpans + " processed, " + enhancedSpans + " enhanced\n");
+          "\n📊 EXPORT SUMMARY: "
+              + processedSpans
+              + " processed, "
+              + enhancedSpans
+              + " enhanced\n");
     }
 
     long exportTime = System.currentTimeMillis() - startTime;
@@ -472,7 +477,8 @@ public class EnhancedExceptionSpanExporter implements SpanExporter {
       // Bootstrap classloader (null) = JDK core classes
       if (classLoader == null) {
         if (debugEnabled) {
-          LOGGER.fine("   \n🏷️  Bootstrap ClassLoader: " + className + " is EXTERNAL (JDK core)\n");
+          LOGGER.fine(
+              "   \n🏷️  Bootstrap ClassLoader: " + className + " is EXTERNAL (JDK core)\n");
         }
         return true;
       }
@@ -511,7 +517,11 @@ public class EnhancedExceptionSpanExporter implements SpanExporter {
                 || path.contains("/dependencies/")) {
               if (debugEnabled) {
                 LOGGER.fine(
-                    "\n   🏷️  Dependency path: " + className + " is EXTERNAL (path: " + path + ")\n");
+                    "\n   🏷️  Dependency path: "
+                        + className
+                        + " is EXTERNAL (path: "
+                        + path
+                        + ")\n");
               }
               return true;
             }
@@ -553,7 +563,11 @@ public class EnhancedExceptionSpanExporter implements SpanExporter {
                   && !path.contains("/out/")) {
                 if (debugEnabled) {
                   LOGGER.fine(
-                      "\n   🏷️  Library JAR: " + className + " is EXTERNAL (path: " + path + ")\n");
+                      "\n   🏷️  Library JAR: "
+                          + className
+                          + " is EXTERNAL (path: "
+                          + path
+                          + ")\n");
                 }
                 return true;
               }
@@ -569,7 +583,8 @@ public class EnhancedExceptionSpanExporter implements SpanExporter {
     } catch (Exception e) {
       // Log but don't fail
       if (debugEnabled) {
-        LOGGER.fine("   \n⚠️  Error during classification of " + className + ": \n" + e.getMessage());
+        LOGGER.fine(
+            "   \n⚠️  Error during classification of " + className + ": \n" + e.getMessage());
       }
     }
 
@@ -620,7 +635,8 @@ public class EnhancedExceptionSpanExporter implements SpanExporter {
                 + element.getClassName()
                 + "."
                 + element.getMethodName());
-        LOGGER.fine("\n      File: " + element.getFileName() + ", Line: " + element.getLineNumber());
+        LOGGER.fine(
+            "\n      File: " + element.getFileName() + ", Line: " + element.getLineNumber());
       }
 
       if (element.getFileName() == null || element.getLineNumber() <= 0) {
@@ -653,10 +669,7 @@ public class EnhancedExceptionSpanExporter implements SpanExporter {
 
         if (debugEnabled) {
           LOGGER.fine(
-              "\n📏 Method boundaries found: "
-                  + boundaries.startLine
-                  + "-\n"
-                  + boundaries.endLine);
+              "\n📏 Method boundaries found: " + boundaries.startLine + "-\n" + boundaries.endLine);
         }
 
         for (int i = boundaries.startLine; i <= boundaries.endLine; i++) {
@@ -813,7 +826,10 @@ public class EnhancedExceptionSpanExporter implements SpanExporter {
 
             if (debugEnabled) {
               LOGGER.fine(
-                  "\n✅ Found method in entire file search: " + methodStartLine + "-\n" + methodEndLine);
+                  "\n✅ Found method in entire file search: "
+                      + methodStartLine
+                      + "-\n"
+                      + methodEndLine);
             }
             break;
           }
@@ -1333,7 +1349,7 @@ public class EnhancedExceptionSpanExporter implements SpanExporter {
       LOGGER.fine("   Total spans processed: " + processedSpans);
       LOGGER.fine("   Total spans enhanced: " + enhancedSpans);
       LOGGER.fine("   Classification cache size: " + classificationCache.size());
-      LOGGER.fine("   Source file cache size: " + sourceFileCache.size()); 
+      LOGGER.fine("   Source file cache size: " + sourceFileCache.size());
     } else {
       LOGGER.info(
           "EnhancedExceptionSpanExporter shutdown - "
@@ -1343,7 +1359,7 @@ public class EnhancedExceptionSpanExporter implements SpanExporter {
               + " enhanced, cache size: "
               + classificationCache.size()
               + ", source cache: "
-              + sourceFileCache.size()); 
+              + sourceFileCache.size());
     }
 
     sourceFileCache.clear();
