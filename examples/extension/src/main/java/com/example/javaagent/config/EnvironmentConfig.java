@@ -143,7 +143,7 @@ public class EnvironmentConfig {
   }
 
   public static String getMwServiceName() {
-    // First check OTEL_SERVICE_NAME, then MW_SERVICE_NAME, then fallback to system property
+    // First check OTEL_SERVICE_NAME, then MW_SERVICE_NAME, then fallback to system property.
     String envConfigServiceName = getEnvConfigValue("OTEL_SERVICE_NAME", "MW_SERVICE_NAME");
     if (envConfigServiceName != null && !envConfigServiceName.isEmpty()) {
       return envConfigServiceName;
