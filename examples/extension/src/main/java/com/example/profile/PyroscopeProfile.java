@@ -6,7 +6,6 @@
 package com.example.profile;
 
 import com.example.javaagent.config.EnvironmentConfig;
-import com.example.javaagent.config.SystemProperties;
 import io.pyroscope.javaagent.EventType;
 import io.pyroscope.javaagent.PyroscopeAgent;
 import io.pyroscope.javaagent.config.Config;
@@ -32,6 +31,7 @@ public class PyroscopeProfile {
   public static void startProfiling() {
     try {
       String tenantId = authenticateAndGetTenantId();
+
       if (tenantId != null && EnvironmentConfig.isMwApmCollectProfiling()) {
         String profilingServerUrl = EnvironmentConfig.getMwProfilingServerUrl();
         if (profilingServerUrl == null) {
@@ -39,7 +39,7 @@ public class PyroscopeProfile {
         }
         PyroscopeAgent.start(
             new Config.Builder()
-                .setApplicationName(SystemProperties.SERVICE_NAME)
+                .setApplicationName(EnvironmentConfig.getMwServiceName())
                 .setProfilingEvent(EventType.ITIMER)
                 .setProfilingAlloc(EnvironmentConfig.getMwProfilingAlloc())
                 .setProfilingLock(EnvironmentConfig.getMwProfilingLock())
