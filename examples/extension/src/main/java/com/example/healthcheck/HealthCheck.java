@@ -31,9 +31,23 @@ public class HealthCheck {
       logHealthCheckResult(isHealthy);
       return isHealthy;
     } catch (IOException e) {
+      String mwTarget = EnvironmentConfig.getMwTarget();
+
+      if (mwTarget == null || mwTarget.trim().isEmpty()) {
+        LOGGER.log(
+            Level.WARNING,
+            "Health check failed due to I/O error. No monitoring agent detected and target URL is not configured. "
+                + "Instrumentation will continue but functionality may be degraded. Please verify network connectivity "
+                + "and monitoring configuration.",
+            e);
+        return false;
+      } else {
+        return true;
+      }
+    } catch (Exception e) {
       LOGGER.log(
-          Level.WARNING,
-          "Error performing health check. Instrumentation will continue, but may not function correctly.",
+          Level.SEVERE,
+          "Unexpected error during health check. Instrumentation status unknown and may be unreliable.",
           e);
       return false;
     }
@@ -68,7 +82,7 @@ public class HealthCheck {
   public void logHealthCheckResult(boolean isHealthy) {
     if (isHealthy) {
       LOGGER.info("Health check passed. Proceeding with instrumentation.");
-    } else {
+    } else if (EnvironmentConfig.getMwTarget() == "") {
       LOGGER.log(
           Level.WARNING,
           "MW Agent Healthcheck is failing ... This could be due to incorrect value of MW_AGENT_SERVICE\n"
