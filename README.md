@@ -152,6 +152,16 @@ Debug logging negatively impacts the performance of your application.
 
 See [CONTRIBUTING.md](CONTRIBUTING.md).
 
+### Project Documentation
+
+For developers and contributors:
+
+- **[Build System Guide](docs/architecture/BUILD_SYSTEM.md)** - Understanding the Gradle build system, configurations, and workarounds
+- **[Technical Debt Report](TECHNICAL_DEBT_REPORT.md)** - Current state of the codebase and identified improvement areas  
+- **[Improvement Plan](IMPROVEMENT_PLAN.md)** - Prioritized action items and ongoing maintenance tasks
+
+### Team
+
 Triagers ([@open-telemetry/java-instrumentation-triagers](https://github.com/orgs/open-telemetry/teams/java-instrumentation-triagers)):
 
 - [Jay DeLuca](https://github.com/jaydeluca)
